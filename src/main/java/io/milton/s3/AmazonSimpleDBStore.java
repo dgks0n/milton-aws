@@ -14,14 +14,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package com.aws.s3;
+package io.milton.s3;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.PropertiesCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
@@ -57,8 +60,10 @@ public class AmazonSimpleDBStore {
          *            sample.
          * http://aws.amazon.com/security-credentials
          */
-        AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-                AmazonSimpleDBStore.class.getResourceAsStream("AwsCredentials.properties")));
+    	AWSCredentialsProvider credentialsProvider = new ClasspathPropertiesFileCredentialsProvider();
+        AmazonSimpleDB sdb = new AmazonSimpleDBClient(credentialsProvider);
+        Region usWest2 = Region.getRegion(Regions.US_WEST_2);
+        sdb.setRegion(usWest2);
 
         System.out.println("===========================================");
         System.out.println("Getting Started with Amazon SimpleDB");

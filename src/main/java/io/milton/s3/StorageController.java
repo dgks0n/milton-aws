@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package com.aws.s3;
+package io.milton.s3;
 
 import io.milton.annotations.ChildrenOf;
 import io.milton.annotations.PutChild;
