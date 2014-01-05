@@ -6,13 +6,31 @@
 	<filter>
 		<filter-name>MiltonFilter</filter-name>
 		<filter-class>io.milton.servlet.MiltonFilter</filter-class>
+
+		<!-- This param shows how to exclude certain paths from the MiltonFilter -->
+		<!-- These paths will "fall through" the filter and be handled as normal 
+			servlet resources -->
+		<init-param>
+			<param-name>milton.exclude.paths</param-name>
+			<param-value>/myExcludedPaths, /moreExcludedPaths</param-value>
+		</init-param>
 		<init-param>
 			<param-name>resource.factory.class</param-name>
 			<param-value>io.milton.http.annotated.AnnotationResourceFactory</param-value>
 		</init-param>
+
+		<!-- Package scanning does not work in some situations, instead you can 
+			provide each controller in a comma seperated list -->
 		<init-param>
-			<param-name>controllerPackagesToScan</param-name>
-			<param-value>io.milton.s3</param-value>
+			<param-name>controllerClassNames</param-name>
+			<param-value>io.milton.s3.controller.AWSRootController,io.milton.s3.controller.AWSStorageController</param-value>
+		</init-param>
+
+		<!-- If using DefaultMiltonConfigurator, or a subclass, you can set any 
+			bean property of the HttpManagerBuilder here -->
+		<init-param>
+			<param-name>enableExpectContinue</param-name>
+			<param-value>false</param-value>
 		</init-param>
 	</filter>
 

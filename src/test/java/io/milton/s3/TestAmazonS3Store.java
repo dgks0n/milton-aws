@@ -28,10 +28,7 @@ import java.util.UUID;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
@@ -45,7 +42,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
-public class AmazonS3Store {
+public class TestAmazonS3Store {
 
 	public static void main(String[] args) throws IOException {
 		/*
@@ -56,19 +53,10 @@ public class AmazonS3Store {
 		 * AwsCredentials.properties file before you try to run this sample.
 		 * http://aws.amazon.com/security-credentials
 		 */
-		String accessKey = "AKIAJRSTBRMPEEPCQN6A";
-		String secretKey = "PwECx7A/R9Gpxb/aEaO81NdObdI9pYNMQkrlhkLy";
-		
-		AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-
-		ClientConfiguration clientConfig = new ClientConfiguration();
-		clientConfig.setProtocol(Protocol.HTTP);
-
-		AmazonS3 s3 = new AmazonS3Client(credentials, clientConfig);
-		
-//		AmazonS3 s3 = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
-//		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
-//		s3.setRegion(usWest2);
+	    AWSCredentialsProvider credentialsProvider = new ClasspathPropertiesFileCredentialsProvider();
+		AmazonS3 amazonS3 = new AmazonS3Client(credentialsProvider);
+		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
+		amazonS3.setRegion(usWest2);
 	
 		String bucketName = "my-first-s3-bucket-" + UUID.randomUUID();
 		String key = "MyObjectKey";
@@ -87,13 +75,13 @@ public class AmazonS3Store {
 			 * to keep your data closer to your applications or users.
 			 */
 			System.out.println("Creating bucket " + bucketName + "\n");
-			s3.createBucket(bucketName);
+			amazonS3.createBucket(bucketName);
 	
 			/*
 			 * List the buckets in your account
 			 */
 			System.out.println("Listing buckets");
-			for (Bucket bucket : s3.listBuckets()) {
+			for (Bucket bucket : amazonS3.listBuckets()) {
 				System.out.println(" - " + bucket.getName());
 			}
 			System.out.println();
@@ -107,7 +95,7 @@ public class AmazonS3Store {
 			 * specific to your applications.
 			 */
 			System.out.println("Uploading a new object to S3 from a file\n");
-			s3.putObject(new PutObjectRequest(bucketName, key, createSampleFile()));
+			amazonS3.putObject(new PutObjectRequest(bucketName, key, createSampleFile()));
 	
 			/*
 			 * Download an object - When you download an object, you get all of
@@ -122,7 +110,7 @@ public class AmazonS3Store {
 			 * ETags, and selectively downloading a range of an object.
 			 */
 			System.out.println("Downloading an object");
-			S3Object object = s3.getObject(new GetObjectRequest(bucketName, key));
+			S3Object object = amazonS3.getObject(new GetObjectRequest(bucketName, key));
 			System.out.println("Content-Type: " + object.getObjectMetadata().getContentType());
 			displayTextInputStream(object.getObjectContent());
 	
@@ -135,7 +123,7 @@ public class AmazonS3Store {
 			 * operation to retrieve additional results.
 			 */
 			System.out.println("Listing objects");
-			ObjectListing objectListing = s3.listObjects(new ListObjectsRequest().withBucketName(bucketName).withPrefix("My"));
+			ObjectListing objectListing = amazonS3.listObjects(new ListObjectsRequest().withBucketName(bucketName).withPrefix("My"));
 			for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
 				System.out.println(" - " + objectSummary.getKey() + "  " + "(size = " + objectSummary.getSize() + ")");
 			}
@@ -147,7 +135,7 @@ public class AmazonS3Store {
 			 * when deleting objects.
 			 */
 			System.out.println("Deleting an object\n");
-			s3.deleteObject(bucketName, key);
+			amazonS3.deleteObject(bucketName, key);
 	
 			/*
 			 * Delete a bucket - A bucket must be completely empty before it can
@@ -155,7 +143,7 @@ public class AmazonS3Store {
 			 * before you try to delete them.
 			 */
 			System.out.println("Deleting bucket " + bucketName + "\n");
-			s3.deleteBucket(bucketName);
+			amazonS3.deleteBucket(bucketName);
 		} catch (AmazonServiceException ase) {
 			System.out.println("Caught an AmazonServiceException, which means your request made it "
 					+ "to Amazon S3, but was rejected with an error response for some reason.");
