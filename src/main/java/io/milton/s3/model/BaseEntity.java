@@ -19,32 +19,53 @@ package io.milton.s3.model;
 import java.util.Date;
 import java.util.UUID;
 
-public abstract class BaseEntity {
+public abstract class BaseEntity implements IEntity {
 
+	/**
+	 * UUID is unique ID
+	 */
     private UUID id;
+    
+    /**
+     * Name of entity
+     */
     private String name;
+    
+    /**
+     * Created date of entity
+     */
     private Date createdDate;
-    protected Date modifiedDate;
+    
+    /**
+     * Modified date of entity
+     */
+    private Date modifiedDate;
 
+    /**
+     * Parent folder entity
+     */
     private Folder parent;
 
-    public BaseEntity(String name, Folder parent) {
-        this.name = name;
-        this.parent = parent;
-        this.id = UUID.randomUUID();
+    public BaseEntity(String name, IFolder parent) {
+    	this.id = UUID.randomUUID();
+    	this.name = name;
+        this.parent = (Folder) parent;
         this.createdDate = new Date();
         this.modifiedDate = new Date();
     }
 
+    @Override
     public UUID getId() {
         return id;
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
+    @Override
+    public void setName(final String name) {
         this.name = name;
         this.modifiedDate = new Date();
     }
@@ -57,25 +78,29 @@ public abstract class BaseEntity {
         return modifiedDate;
     }
 
-    public Folder getParent() {
+    @Override
+    public IFolder getParent() {
         return parent;
     }
 
-    public void setParent(Folder parent) {
-        this.parent = parent;
+    @Override
+    public void setParent(final IFolder parent) {
+        this.parent = (Folder) parent;
     }
 
     /**
      * Move the source object to the given parent and with the given name
      * 
-     * @param the
-     *            target folder
+     * @param target
+     *            - the target folder
      */
-    public void moveTo(final Folder target) {
+    public void moveTo(final IFolder target) {
         this.modifiedDate = new Date();
+        
+        // Remove the source object
         parent.getChildren().remove(this);
         target.getChildren().add(this);
-        this.parent = target;
+        this.parent = (Folder) target;
     }
 
     /**
@@ -84,16 +109,4 @@ public abstract class BaseEntity {
     public void delete() {
         parent.getChildren().remove(this);
     }
-
-    /**
-     * Copy the source object to the given parent and with the given name
-     * 
-     * @param the
-     *            target folder
-     * @param the
-     *            target name
-     * 
-     * @return BaseEntity
-     */
-    public abstract BaseEntity copyTo(final Folder target, final String targetName);
 }

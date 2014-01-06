@@ -20,22 +20,27 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class Folder extends BaseEntity {
+public class Folder extends BaseEntity implements IFolder {
     
+	/**
+	 * A list of children's folder
+	 */
     private List<BaseEntity> childrens = new ArrayList<BaseEntity>();
     
-    public Folder(String name, Folder parent) {
-        super(name, parent);
+    public Folder(String folderName, Folder parent) {
+        super(folderName, parent);
     }
     
-    public File addFile(final String name) {
-        File file = new File(name, this);
+    @Override
+    public synchronized IFile addFile(final String fileName) {
+        File file = new File(fileName, this);
         childrens.add(file);
         return file;
     }
     
-    public Folder addFolder(final String name) {
-        Folder folder = new Folder(name, this);
+    @Override
+    public synchronized IFolder addFolder(final String folderName) {
+        Folder folder = new Folder(folderName, this);
         childrens.add(folder);
         return folder;
     }
@@ -45,10 +50,10 @@ public class Folder extends BaseEntity {
      * 
      * @param the given name of entity
      */
-    public void remove(final String name) {
+    public void remove(final String entityName) {
         Iterator<BaseEntity> iterator = childrens.iterator();
         while(iterator.hasNext()) {
-            if(iterator.next().getName().equals(name)) {
+            if(iterator.next().getName().equals(entityName)) {
                 iterator.remove();
             }
         }
@@ -59,8 +64,11 @@ public class Folder extends BaseEntity {
      * 
      * @return a list of entities
      */
-    public List<BaseEntity> getChildren() {
-        return childrens;
+    @Override
+    public synchronized List<IEntity> getChildren() {
+    	List<IEntity> children = new ArrayList<IEntity>();
+    	children.addAll(childrens);
+        return children;
     }
     
     /**
@@ -69,25 +77,26 @@ public class Folder extends BaseEntity {
      * @param name
      * @return
      */
-    public BaseEntity child(final String name) {
-        for(BaseEntity entity : childrens) {
-            if(entity.getName().equals(name))
+    @Override
+    public IEntity getChildren(final String entityName) {
+        for(IEntity entity : childrens) {
+            if(entity.getName().equals(entityName))
                 return entity;
         }
         return null;
     }
     
     @Override
-    public void moveTo(final Folder target) {
+    public void moveTo(final IFolder target) {
         super.moveTo(target);
     }
     
     @Override
-    public Folder copyTo(final Folder target, final String targetName) {
-        Folder newFolder = target.addFolder(targetName);
-        for(BaseEntity entity : childrens) {
-            entity.copyTo(newFolder, entity.getName());
+    public IEntity copyTo(final IFolder target, final String targetName) {
+    	Folder folder = (Folder) target.addFolder(targetName);
+        for(IEntity entity : childrens) {
+            entity.copyTo(folder, entity.getName());
         }
-        return newFolder;
+        return folder;
     }
 }

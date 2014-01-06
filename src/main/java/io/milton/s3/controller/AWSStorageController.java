@@ -25,13 +25,15 @@ import io.milton.annotations.Move;
 import io.milton.annotations.Name;
 import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
-import io.milton.s3.model.BaseEntity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
+import io.milton.s3.model.IEntity;
+import io.milton.s3.model.IFile;
+import io.milton.s3.model.IFolder;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,48 +50,45 @@ public class AWSStorageController {
      * @return
      */
     @ChildrenOf
-    public List<BaseEntity> children(Folder folder) {
-        if (folder == null)
-            return null;
+    public List<IEntity> getChildren(IFolder parent) {
+        if (parent == null)
+            return Collections.emptyList();
         
-        List<BaseEntity> children = folder.getChildren();
-        LOG.info("Getting childrens of " + folder.getName());
-        LOG.info("Returning " + children.size() + " children");
+        List<IEntity> children = parent.getChildren();
+        LOG.info("Getting childrens of " + parent.getName() + "; Returning " + children.size() + " children of " + parent.getName());
         return children;
     }
     
     @MakeCollection
-    public Folder createFolder(Folder parent, String folderName) {
-        folderName = UUID.randomUUID().toString();
+    public IFolder createFolder(IFolder parent, String folderName) {
         LOG.info("Creating folder " + folderName + " in " + parent.getName());
         
         return parent.addFolder(folderName);
     }
     
     @Name
-    public String getResource(BaseEntity entity) {
+    public String getResource(IEntity entity) {
         return entity.getName();
     }
     
     @DisplayName
-    public String getDisplayName(BaseEntity entity) {
+    public String getDisplayName(IEntity entity) {
         return entity.getName();
     }
     
     @PutChild
-    public File createFile(Folder parent, String newName, byte[] bytes) {
+    public IFile createFile(IFolder parent, String newName, byte[] bytes) {
         LOG.info("Creating file with Name: " + newName + "; Size of upload: "
                 + bytes.length + " in the folder " + parent.getName());
         
-        File file = parent.addFile(newName);
+        File file = (File) parent.addFile(newName);
         file.setBytes(bytes);
         return file;
     }
     
     @Move
-    public void move(File file, Folder newParent, String newName) {
-        LOG.info("Moving " + file.getName() + " to " + newName + " in " + newParent.getName());
-        
+    public void move(IFile file, IFolder newParent, String newName) {
+        LOG.info("Moving file " + file.getName() + " to " + newName + " in " + newParent.getName());
         if (file.getParent() != newParent) {
             newParent.getChildren().add(file);
             file.setParent(newParent);
@@ -100,7 +99,7 @@ public class AWSStorageController {
     
     @Copy
     public void copy(File file, Folder newParent, String newName) {
-        LOG.info("Copying " + file.getName() + " to " + newName + " in " + newParent.getName());
+        LOG.info("Copying file " + file.getName() + " to " + newName + " in " + newParent.getName());
         
         File copyOfFile = new File(newName, newParent, Arrays.copyOf(file.getBytes(), file.getBytes().length));
         newParent.getChildren().add(copyOfFile);
@@ -112,12 +111,14 @@ public class AWSStorageController {
     }
     
     @ContentLength
-    public Long folderContentLength(Folder folder) {
+    public Long folderContentLength(IFolder folder) {
         return 0L;
     }
     
     @ContentLength
-    public Long fileContentLength(File file) {
-        return new Long(file.getBytes().length);
+    public Long fileContentLength(IFile file) {
+    	Long fileSize = new Long(file.getBytes().length);
+    	LOG.info("Getting size of " + file.getName() + "; Returning " + fileSize + " bytes");
+        return fileSize;
     }
 }

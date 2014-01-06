@@ -16,21 +16,26 @@
  */
 package io.milton.s3.model;
 
-public class File extends BaseEntity {
+public class File extends BaseEntity implements IFile {
     
     private byte[] bytes;
     private String contentType;
+    
+    /**
+     * Size of file
+     */
     private long size;
 
-    public File(String name, Folder parent) {
-        super(name, parent);
+    public File(String fileName, Folder parent) {
+        super(fileName, parent);
     }
     
-    public File(String name, Folder parent, byte[] bytes) {
-        super(name, parent);
+    public File(String fileName, Folder parent, byte[] bytes) {
+        super(fileName, parent);
         this.bytes = bytes;
     }
 
+    @Override
     public byte[] getBytes() {
         return bytes;
     }
@@ -39,6 +44,7 @@ public class File extends BaseEntity {
         this.bytes = bytes;
     }
 
+    @Override
     public String getContentType() {
         return contentType;
     }
@@ -47,6 +53,7 @@ public class File extends BaseEntity {
         this.contentType = contentType;
     }
 
+    @Override
     public long getSize() {
         return size;
     }
@@ -56,8 +63,8 @@ public class File extends BaseEntity {
     }
 
     @Override
-    public File copyTo(final Folder target, final String targetName) {
-        File file = target.addFile(targetName);
+    public IEntity copyTo(final IFolder target, final String targetName) {
+        File file = (File) ((Folder) target).addFile(targetName);
         file.bytes = bytes;
         file.contentType = contentType;
         file.size = size;

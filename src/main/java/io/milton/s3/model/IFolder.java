@@ -14,28 +14,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package io.milton.s3.dao;
+package io.milton.s3.model;
 
-import io.milton.s3.model.Folder;
+import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+public interface IFolder extends IEntity {
 
-public class DynamoDBRepository {
-
-    private static final Logger LOG = LoggerFactory.getLogger(DynamoDBRepository.class);
-    
-    public static Folder getRootFolder() throws Exception {
-        Folder root = new Folder("/", null);
-        
-        // TODO: Only for test
-        Folder java = (Folder) root.addFolder("Java");
-        java.addFolder("Java01");
-        java.addFolder("Java02").addFile("test.txt");
-        java.addFolder("Java03");
-        
-        root.addFolder("PHP").addFolder("Work");
-        
-        return root;
-    }
+	IFile addFile(final String fileName);
+	
+	IFolder addFolder(final String folderName);
+	
+	List<IEntity> getChildren();
+	
+	IEntity getChildren(final String entityName);
 }

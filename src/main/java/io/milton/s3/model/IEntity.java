@@ -14,28 +14,33 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package io.milton.s3.dao;
+package io.milton.s3.model;
 
-import io.milton.s3.model.Folder;
+import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class DynamoDBRepository {
-
-    private static final Logger LOG = LoggerFactory.getLogger(DynamoDBRepository.class);
-    
-    public static Folder getRootFolder() throws Exception {
-        Folder root = new Folder("/", null);
-        
-        // TODO: Only for test
-        Folder java = (Folder) root.addFolder("Java");
-        java.addFolder("Java01");
-        java.addFolder("Java02").addFile("test.txt");
-        java.addFolder("Java03");
-        
-        root.addFolder("PHP").addFolder("Work");
-        
-        return root;
-    }
+public interface IEntity {
+	
+	UUID getId();
+	
+	String getName();
+	
+	void setName(final String name);
+	
+	IFolder getParent();
+	
+	void setParent(final IFolder parent);
+	
+	void moveTo(final IFolder target);
+	
+	/**
+     * Copy the source object to the given parent and with the given name
+     * 
+     * @param target
+     *            - the target folder
+     * @param targetName
+     *            - the target name
+     * 
+     * @return BaseEntity
+     */
+	abstract IEntity copyTo(final IFolder target, final String targetName);
 }

@@ -35,16 +35,17 @@ public class AWSRootController {
      * as a root.
      * 
      * @return
+     * @throws Exception 
      */
     @Root
-    public Folder getRootFolder() {
+    public Folder getRootFolder() throws Exception {
         LOG.info("Getting root folder...");
         
-        return DynamoDBRepository.getRoot();
+        return DynamoDBRepository.getRootFolder();
     }
     
     @ChildrenOf
-    public AWSRootController children(AWSRootController root) {
+    public AWSRootController children(AWSRootController rootFolder) {
         return this;
     }
 }

@@ -36,6 +36,7 @@ import com.amazonaws.services.dynamodbv2.model.KeyType;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
@@ -82,8 +83,13 @@ public class TestAmazonDynamoDBStore {
                 .withKeySchema(new KeySchemaElement().withAttributeName("name").withKeyType(KeyType.HASH))
                 .withAttributeDefinitions(new AttributeDefinition().withAttributeName("name").withAttributeType(ScalarAttributeType.S))
                 .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
-            TableDescription createdTableDescription = dynamoDB.createTable(createTableRequest).getTableDescription();
-            System.out.println("Created Table: " + createdTableDescription);
+            
+            try {
+            	TableDescription createdTableDescription = dynamoDB.createTable(createTableRequest).getTableDescription();
+                System.out.println("Created Table: " + createdTableDescription);
+			} catch (ResourceInUseException rie) {
+				System.err.println(rie.getMessage());
+			}
 
             // Wait for it to become active
             waitForTableToBecomeAvailable(tableName);
