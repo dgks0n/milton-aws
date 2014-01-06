@@ -74,8 +74,16 @@ public abstract class BaseEntity implements IEntity {
         return createdDate;
     }
 
+    public void setCreatedDate(Date createdDate) {
+        this.createdDate = createdDate;
+    }
+
     public Date getModifiedDate() {
         return modifiedDate;
+    }
+    
+    public void setModifiedDate(Date modifiedDate) {
+        this.modifiedDate = modifiedDate;
     }
 
     @Override

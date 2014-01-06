@@ -25,36 +25,109 @@ import io.milton.annotations.Move;
 import io.milton.annotations.Name;
 import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
+import io.milton.annotations.Root;
+import io.milton.s3.db.DynamoDBStore;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
 import io.milton.s3.model.IEntity;
 import io.milton.s3.model.IFile;
 import io.milton.s3.model.IFolder;
+import io.milton.s3.util.Crypt;
 
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
+import com.amazonaws.services.dynamodbv2.model.Condition;
 
 @ResourceController
 public class AWSStorageController {
 
     private static final Logger LOG = LoggerFactory.getLogger(AWSStorageController.class);
     
+    private static final String NOT_EXIST = "NONE";
+    
+    private static final String DYNAMODB_TABLE_NAME = "milton-s3-demo";
+    
+    /**
+     * Amazon DynamoDB Storage
+     */
+    private DynamoDBStore dynamoDBStore = new DynamoDBStore();
+    
+    /**
+     * Initialize Amazon DynamoDB environment
+     * 
+     * @throws Exception
+     */
+    protected void openDynamoDBStorage(String tableName) throws Exception {
+        LOG.info("Creating table " + tableName + " in Amazon DynamoDB");
+        
+        dynamoDBStore.openDynamoDB();
+        dynamoDBStore.createTable(tableName);
+        dynamoDBStore.describeTable(tableName);
+    }
+    
+    /**
+     * Return the root folder. Also annotated for Milton to use
+     * as a root.
+     * 
+     * @return
+     * @throws Exception 
+     */
+    @Root
+    public IFolder getRootFolder() throws Exception {
+        
+        openDynamoDBStorage(DYNAMODB_TABLE_NAME);
+        // Root folder
+        Folder rootFolder = new Folder("/", null);
+        
+        LOG.info("Getting root folder and create if it is not exist..");
+        String uniqueId = Crypt.toHexFromText(rootFolder.getName());
+        Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
+            .withAttributeValueList(new AttributeValue(uniqueId));
+        
+        // Create Root folder if it is not exist
+        boolean isRootFolderCreated = dynamoDBStore.isRootFolderCreated(DYNAMODB_TABLE_NAME, "uniqueId", condition);
+        if (!isRootFolderCreated) {
+            Map<String, AttributeValue> item = dynamoDBStore.newItem(uniqueId, rootFolder.getName(), NOT_EXIST, NOT_EXIST, 0, 
+                    NOT_EXIST, rootFolder.getCreatedDate(), rootFolder.getModifiedDate());
+            
+            // Store in the Amazon DynamoDB
+            dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+        }
+        return rootFolder;
+    }
+    
+    @ChildrenOf
+    public AWSStorageController getChildren(AWSStorageController rootFolder) {
+        return this;
+    }
+    
     /**
      * Get all of my children, whether they are folders or files.
      * 
      * @param folder
      * @return
+     * @throws ParseException 
      */
     @ChildrenOf
-    public List<IEntity> getChildren(IFolder parent) {
+    public List<IEntity> getChildren(IFolder parent) throws ParseException {
         if (parent == null)
             return Collections.emptyList();
         
-        List<IEntity> children = parent.getChildren();
+        String parentId = Crypt.toHexFromText(parent.getName());
+        Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
+            .withAttributeValueList(new AttributeValue(parentId));
+        
+        List<IEntity> children = dynamoDBStore.getChildren(parent, DYNAMODB_TABLE_NAME, "parentId", condition);
         LOG.info("Getting childrens of " + parent.getName() + "; Returning " + children.size() + " children of " + parent.getName());
         return children;
     }
@@ -63,7 +136,15 @@ public class AWSStorageController {
     public IFolder createFolder(IFolder parent, String folderName) {
         LOG.info("Creating folder " + folderName + " in " + parent.getName());
         
-        return parent.addFolder(folderName);
+        Folder newFolder = (Folder) parent.addFolder(folderName);
+        String uniqueId = Crypt.toHexFromText(folderName);
+        String parentId = Crypt.toHexFromText(parent.getName());
+        Map<String, AttributeValue> item = dynamoDBStore.newItem(uniqueId, folderName, parentId, NOT_EXIST, 0,
+                NOT_EXIST, newFolder.getCreatedDate(), newFolder.getModifiedDate());
+        
+        // Store in the Amazon DynamoDB
+        dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+        return newFolder;
     }
     
     @Name

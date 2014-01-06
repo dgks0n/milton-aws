@@ -42,5 +42,5 @@ public interface IEntity {
      * 
      * @return BaseEntity
      */
-	abstract IEntity copyTo(final IFolder target, final String targetName);
+	 IEntity copyTo(final IFolder target, final String targetName);
 }

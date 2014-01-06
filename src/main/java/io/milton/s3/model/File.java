@@ -26,11 +26,11 @@ public class File extends BaseEntity implements IFile {
      */
     private long size;
 
-    public File(String fileName, Folder parent) {
+    public File(String fileName, IFolder parent) {
         super(fileName, parent);
     }
     
-    public File(String fileName, Folder parent, byte[] bytes) {
+    public File(String fileName, IFolder parent, byte[] bytes) {
         super(fileName, parent);
         this.bytes = bytes;
     }

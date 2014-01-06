@@ -27,7 +27,7 @@ public class Folder extends BaseEntity implements IFolder {
 	 */
     private List<BaseEntity> childrens = new ArrayList<BaseEntity>();
     
-    public Folder(String folderName, Folder parent) {
+    public Folder(String folderName, IFolder parent) {
         super(folderName, parent);
     }
     
