@@ -18,6 +18,7 @@ package io.milton.s3.model;
 
 import io.milton.s3.util.Crypt;
 
+import java.io.File;
 import java.util.Date;
 
 public abstract class Entity implements IEntity {
@@ -41,6 +42,11 @@ public abstract class Entity implements IEntity {
      * Modified date of entity
      */
     private Date modifiedDate;
+    
+    /**
+     * Stored full path of entity
+     */
+    private String localPath;
 
     /**
      * Parent folder entity
@@ -53,6 +59,9 @@ public abstract class Entity implements IEntity {
         this.parent = (Folder) parent;
         this.createdDate = new Date();
         this.modifiedDate = new Date();
+        
+        if (this.parent != null)
+            this.localPath = this.parent.getLocalPath() + File.separatorChar + getName();
     }
 
     @Override
@@ -95,6 +104,26 @@ public abstract class Entity implements IEntity {
     @Override
     public void setParent(final IFolder parent) {
         this.parent = (Folder) parent;
+    }
+    
+    @Override
+    public String getLocalPath() {
+        return this.localPath;
+    }
+
+    public void setLocalPath(String localPath) {
+        this.localPath = localPath;
+    }
+    
+    @Override
+    public String getFullPathName() {
+        if (parent == null) {
+            return this.name;
+        } else if (parent.getParent() == null) {
+            return parent.getFullPathName() + getName();
+        } else {
+            return parent.getFullPathName() + File.separatorChar + getName();
+        }
     }
 
     /**

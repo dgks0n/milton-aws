@@ -16,7 +16,7 @@
  */
 package io.milton.s3.util;
 
-public class DynamoDBTable {
+public class AttributeKey {
 	
 	public static final String NOT_EXIST = "NONE";
 	

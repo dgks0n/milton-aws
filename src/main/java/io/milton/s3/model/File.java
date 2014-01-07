@@ -16,6 +16,9 @@
  */
 package io.milton.s3.model;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLConnection;
 
 import javax.activation.MimetypesFileTypeMap;
@@ -91,5 +94,10 @@ public class File extends Entity implements IFile {
         if (StringUtils.isEmpty(contentType))
         	contentType = MimetypesFileTypeMap.getDefaultFileTypeMap().getContentType(this.getName());
         return contentType;
+    }
+
+    @Override
+    public InputStream getInputStream() throws IOException {
+        return new FileInputStream(getLocalPath());
     }
 }

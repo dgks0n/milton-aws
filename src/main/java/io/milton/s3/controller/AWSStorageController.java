@@ -27,25 +27,27 @@ import io.milton.annotations.Name;
 import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
 import io.milton.annotations.Root;
-import io.milton.s3.db.DynamoDBStore;
+import io.milton.s3.db.DynamoDBService;
+import io.milton.s3.db.DynamoDBServiceImpl;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IFile;
-import io.milton.s3.util.DynamoDBTable;
+import io.milton.s3.util.AttributeKey;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
 import com.amazonaws.services.dynamodbv2.model.Condition;
@@ -60,7 +62,7 @@ public class AWSStorageController {
     /**
      * Amazon DynamoDB Storage
      */
-    private final DynamoDBStore dynamoDBStore;
+    private final DynamoDBService dynamoDBService;
     
     /**
      * Initialize Amazon DynamoDB environment
@@ -68,13 +70,16 @@ public class AWSStorageController {
      * @throws Exception
      */
     public AWSStorageController() throws Exception {
-        LOG.info("Creating table " + DYNAMODB_TABLE_NAME + " in Amazon DynamoDB");
         
-        dynamoDBStore = new DynamoDBStore();
-        dynamoDBStore.createTable(DYNAMODB_TABLE_NAME);
-        
-        // Describe the table for the given table after created
-        dynamoDBStore.describeTable(DYNAMODB_TABLE_NAME);
+        dynamoDBService = new DynamoDBServiceImpl(Region.getRegion(Regions.US_WEST_2), DYNAMODB_TABLE_NAME);
+        if (!dynamoDBService.isTableExist()) {
+            LOG.info("Creating table " + DYNAMODB_TABLE_NAME + " in Amazon DynamoDB");
+            
+            // Create table if it's not exist
+            dynamoDBService.createTable();
+            // Describe the table for the given table after created
+            dynamoDBService.describeTable();
+        }
     }
     
     /**
@@ -90,13 +95,14 @@ public class AWSStorageController {
     	
         // Root folder [/]
         Folder rootFolder = new Folder("/", null);
+        rootFolder.setLocalPath("");
         
         // Create Root folder if it is not exist
-        boolean isRootFolderCreated = dynamoDBStore.isRootFolderCreated(DYNAMODB_TABLE_NAME, rootFolder);
+        boolean isRootFolderCreated = dynamoDBService.isRootFolderCreated(rootFolder);
         if (!isRootFolderCreated) {
-            Map<String, AttributeValue> item = dynamoDBStore.newItem(rootFolder);
+            Map<String, AttributeValue> item = dynamoDBService.newItem(rootFolder);
             // Store in the Amazon DynamoDB
-            dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+            dynamoDBService.putItem(item);
         } else {
         	LOG.info("Root folder [/] already created in the table " + DYNAMODB_TABLE_NAME);
         }
@@ -122,10 +128,12 @@ public class AWSStorageController {
         }
         
         Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-            .withAttributeValueList(new AttributeValue(parent.getId()));
+            .withAttributeValueList(new AttributeValue().withS(parent.getId()));
         
+        Map<String, Condition> conditions = new HashMap<String, Condition>();
+        conditions.put(AttributeKey.PARENT_UUID, condition);
         // Get all entities form Amazon DynamoDB
-        List<Entity> children = dynamoDBStore.getChildren(parent, DYNAMODB_TABLE_NAME, DynamoDBTable.PARENT_UUID, condition);
+        List<Entity> children = dynamoDBService.getChildren(parent, conditions);
         LOG.info("Getting childrens of " + parent.getName() + "; Returning " + children.size() + " children of " + parent.getName());
         return children;
     }
@@ -136,10 +144,10 @@ public class AWSStorageController {
         
         // Create new folder for the given name
         Folder newFolder = (Folder) parent.addFolder(folderName);
-        Map<String, AttributeValue> item = dynamoDBStore.newItem(newFolder);
+        Map<String, AttributeValue> item = dynamoDBService.newItem(newFolder);
         
         // Store in the Amazon DynamoDB
-        dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+        dynamoDBService.putItem(item);
         return newFolder;
     }
     
@@ -155,16 +163,17 @@ public class AWSStorageController {
     
     @PutChild
     public File createFile(Folder parent, String newName, byte[] bytes) {
-        LOG.info("Creating file with Name: " + newName + "; Size of upload: " + bytes.length + " in the folder " + parent.getName());
+        LOG.info("Creating file with Name: " + newName + "; Size of upload: " + bytes.length
+                + " in the folder " + parent.getName());
         
         // Create a file and store into Amazon DynamoDB
         File newFile = (File) parent.addFile(newName);
         newFile.setBytes(bytes);
         newFile.setSize(bytes.length);
-        Map<String, AttributeValue> item = dynamoDBStore.newItem(newFile);
+        Map<String, AttributeValue> item = dynamoDBService.newItem(newFile);
         
         // Store in the Amazon DynamoDB
-        dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+        dynamoDBService.putItem(item);
         return newFile;
     }
     
@@ -186,6 +195,9 @@ public class AWSStorageController {
         
         File copyOfFile = new File(newName, newParent, Arrays.copyOf(file.getBytes(), file.getBytes().length));
         newParent.getChildren().add(copyOfFile);
+        // Get new item based on copied file and store in the Amazon DynamoDB
+        Map<String, AttributeValue> item = dynamoDBService.newItem(copyOfFile);
+        dynamoDBService.putItem(item);
     }
     
     @ContentLength
@@ -207,8 +219,7 @@ public class AWSStorageController {
     }
     
     @Get
-    public InputStream getFile(IFile file) throws IOException {
-    	InputStream inputStream = new FileInputStream(file.getName());
-    	return inputStream;
+    public InputStream getFile(File file) throws IOException {
+    	return file.getInputStream();
     }
 }

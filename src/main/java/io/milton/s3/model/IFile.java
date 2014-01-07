@@ -16,6 +16,9 @@
  */
 package io.milton.s3.model;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 public interface IFile extends IEntity {
 
 	byte[] getBytes();
@@ -23,4 +26,12 @@ public interface IFile extends IEntity {
 	String getContentType();
 	
 	long getSize();
+	
+	/**
+	 * A client wants data back, so give them a stream they can read.
+	 * 
+	 * @return
+	 * @throws IOException
+	 */
+	abstract InputStream getInputStream() throws IOException;
 }

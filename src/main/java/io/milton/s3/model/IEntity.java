@@ -30,6 +30,10 @@ public interface IEntity {
 	
 	void moveTo(final IFolder target);
 	
+	String getLocalPath();
+	
+	String getFullPathName();
+	
 	/**
      * Copy the source object to the given parent and with the given name
      * 

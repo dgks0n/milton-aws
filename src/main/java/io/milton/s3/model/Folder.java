@@ -34,6 +34,8 @@ public class Folder extends Entity implements IFolder {
     @Override
     public synchronized IFile addFile(final String fileName) {
         File file = new File(fileName, this);
+        // Calculate local path for entity
+        file.setLocalPath(getLocalPath() + java.io.File.separator + file.getName());
         childrens.add(file);
         return file;
     }
@@ -41,6 +43,8 @@ public class Folder extends Entity implements IFolder {
     @Override
     public synchronized IFolder addFolder(final String folderName) {
         Folder folder = new Folder(folderName, this);
+        // Calculate local path for entity
+        folder.setLocalPath(getLocalPath() + java.io.File.separator + folder.getName());
         childrens.add(folder);
         return folder;
     }
