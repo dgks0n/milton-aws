@@ -27,17 +27,16 @@ import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
 import io.milton.annotations.Root;
 import io.milton.s3.db.DynamoDBStore;
+import io.milton.s3.model.BaseEntity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
 import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFile;
-import io.milton.s3.model.IFolder;
 import io.milton.s3.util.Crypt;
+import io.milton.s3.util.DynamoDBTable;
 
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -83,7 +82,7 @@ public class AWSStorageController {
      * @throws Exception 
      */
     @Root
-    public IFolder getRootFolder() throws Exception {
+    public Folder getRootFolder() throws Exception {
         
         openDynamoDBStorage(DYNAMODB_TABLE_NAME);
         // Root folder
@@ -95,7 +94,7 @@ public class AWSStorageController {
             .withAttributeValueList(new AttributeValue(uniqueId));
         
         // Create Root folder if it is not exist
-        boolean isRootFolderCreated = dynamoDBStore.isRootFolderCreated(DYNAMODB_TABLE_NAME, "uniqueId", condition);
+        boolean isRootFolderCreated = dynamoDBStore.isRootFolderCreated(DYNAMODB_TABLE_NAME, DynamoDBTable.UUID, condition);
         if (!isRootFolderCreated) {
             Map<String, AttributeValue> item = dynamoDBStore.newItem(uniqueId, rootFolder.getName(), NOT_EXIST, NOT_EXIST, 0, 
                     NOT_EXIST, rootFolder.getCreatedDate(), rootFolder.getModifiedDate());
@@ -119,24 +118,29 @@ public class AWSStorageController {
      * @throws ParseException 
      */
     @ChildrenOf
-    public List<IEntity> getChildren(IFolder parent) throws ParseException {
+    public List<BaseEntity> getChildren(Folder parent) {
         if (parent == null)
             return Collections.emptyList();
         
+        // Get UUID depends on parent folder name
         String parentId = Crypt.toHexFromText(parent.getName());
         Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
             .withAttributeValueList(new AttributeValue(parentId));
         
-        List<IEntity> children = dynamoDBStore.getChildren(parent, DYNAMODB_TABLE_NAME, "parentId", condition);
+        // Get all entities form Amazon DynamoDB
+        List<BaseEntity> children = dynamoDBStore.getChildren(parent, DYNAMODB_TABLE_NAME, DynamoDBTable.PARENT_UUID, condition);
         LOG.info("Getting childrens of " + parent.getName() + "; Returning " + children.size() + " children of " + parent.getName());
         return children;
     }
     
     @MakeCollection
-    public IFolder createFolder(IFolder parent, String folderName) {
+    public Folder createFolder(Folder parent, String folderName) {
         LOG.info("Creating folder " + folderName + " in " + parent.getName());
         
-        Folder newFolder = (Folder) parent.addFolder(folderName);
+        // Create new folder for the given name
+        Folder newFolder = parent.addFolder(folderName);
+        
+        // Get UUID depends on folder name
         String uniqueId = Crypt.toHexFromText(folderName);
         String parentId = Crypt.toHexFromText(parent.getName());
         Map<String, AttributeValue> item = dynamoDBStore.newItem(uniqueId, folderName, parentId, NOT_EXIST, 0,
@@ -148,27 +152,27 @@ public class AWSStorageController {
     }
     
     @Name
-    public String getResource(IEntity entity) {
+    public String getResource(BaseEntity entity) {
         return entity.getName();
     }
     
     @DisplayName
-    public String getDisplayName(IEntity entity) {
+    public String getDisplayName(BaseEntity entity) {
         return entity.getName();
     }
     
     @PutChild
-    public IFile createFile(IFolder parent, String newName, byte[] bytes) {
+    public File createFile(Folder parent, String newName, byte[] bytes) {
         LOG.info("Creating file with Name: " + newName + "; Size of upload: "
                 + bytes.length + " in the folder " + parent.getName());
         
-        File file = (File) parent.addFile(newName);
+        File file = parent.addFile(newName);
         file.setBytes(bytes);
         return file;
     }
     
     @Move
-    public void move(IFile file, IFolder newParent, String newName) {
+    public void move(File file, Folder newParent, String newName) {
         LOG.info("Moving file " + file.getName() + " to " + newName + " in " + newParent.getName());
         if (file.getParent() != newParent) {
             newParent.getChildren().add(file);
@@ -192,12 +196,12 @@ public class AWSStorageController {
     }
     
     @ContentLength
-    public Long folderContentLength(IFolder folder) {
+    public Long folderContentLength(Folder folder) {
         return 0L;
     }
     
     @ContentLength
-    public Long fileContentLength(IFile file) {
+    public Long fileContentLength(File file) {
     	Long fileSize = new Long(file.getBytes().length);
     	LOG.info("Getting size of " + file.getName() + "; Returning " + fileSize + " bytes");
         return fileSize;

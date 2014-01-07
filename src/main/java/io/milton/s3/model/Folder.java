@@ -27,19 +27,19 @@ public class Folder extends BaseEntity implements IFolder {
 	 */
     private List<BaseEntity> childrens = new ArrayList<BaseEntity>();
     
-    public Folder(String folderName, IFolder parent) {
+    public Folder(String folderName, Folder parent) {
         super(folderName, parent);
     }
     
     @Override
-    public synchronized IFile addFile(final String fileName) {
+    public synchronized File addFile(final String fileName) {
         File file = new File(fileName, this);
         childrens.add(file);
         return file;
     }
     
     @Override
-    public synchronized IFolder addFolder(final String folderName) {
+    public synchronized Folder addFolder(final String folderName) {
         Folder folder = new Folder(folderName, this);
         childrens.add(folder);
         return folder;
@@ -65,10 +65,8 @@ public class Folder extends BaseEntity implements IFolder {
      * @return a list of entities
      */
     @Override
-    public synchronized List<IEntity> getChildren() {
-    	List<IEntity> children = new ArrayList<IEntity>();
-    	children.addAll(childrens);
-        return children;
+    public synchronized List<BaseEntity> getChildren() {
+        return childrens;
     }
     
     /**
@@ -78,8 +76,8 @@ public class Folder extends BaseEntity implements IFolder {
      * @return
      */
     @Override
-    public IEntity getChildren(final String entityName) {
-        for(IEntity entity : childrens) {
+    public BaseEntity getChildren(final String entityName) {
+        for(BaseEntity entity : childrens) {
             if(entity.getName().equals(entityName))
                 return entity;
         }
@@ -87,14 +85,14 @@ public class Folder extends BaseEntity implements IFolder {
     }
     
     @Override
-    public void moveTo(final IFolder target) {
+    public void moveTo(final Folder target) {
         super.moveTo(target);
     }
     
     @Override
-    public IEntity copyTo(final IFolder target, final String targetName) {
-    	Folder folder = (Folder) target.addFolder(targetName);
-        for(IEntity entity : childrens) {
+    public BaseEntity copyTo(final Folder target, final String targetName) {
+    	Folder folder = target.addFolder(targetName);
+        for(BaseEntity entity : childrens) {
             entity.copyTo(folder, entity.getName());
         }
         return folder;

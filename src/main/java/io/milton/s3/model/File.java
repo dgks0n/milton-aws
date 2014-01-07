@@ -26,12 +26,14 @@ public class File extends BaseEntity implements IFile {
      */
     private long size;
 
-    public File(String fileName, IFolder parent) {
+    public File(String fileName, Folder parent) {
         super(fileName, parent);
     }
     
-    public File(String fileName, IFolder parent, byte[] bytes) {
+    public File(String fileName, Folder parent, byte[] bytes) {
         super(fileName, parent);
+        
+        // Size of file
         this.bytes = bytes;
     }
 
@@ -63,8 +65,8 @@ public class File extends BaseEntity implements IFile {
     }
 
     @Override
-    public IEntity copyTo(final IFolder target, final String targetName) {
-        File file = (File) ((Folder) target).addFile(targetName);
+    public BaseEntity copyTo(final Folder target, final String targetName) {
+        File file = target.addFile(targetName);
         file.bytes = bytes;
         file.contentType = contentType;
         file.size = size;

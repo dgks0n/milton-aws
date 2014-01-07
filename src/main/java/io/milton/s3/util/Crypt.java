@@ -52,17 +52,17 @@ public class Crypt {
     }
     
     public static MessageDigest getCrypt() {
-        MessageDigest cript;
+        MessageDigest crypto;
         try {
-            cript = MessageDigest.getInstance("SHA-1");
+        	crypto = MessageDigest.getInstance("SHA-1");
         } catch (NoSuchAlgorithmException ex) {
             throw new RuntimeException(ex);
         }
-        return cript;
+        return crypto;
     }
 
-    public static String toHex(MessageDigest crypt) {
-        String hash = DigestUtils.shaHex(crypt.digest());
+    public static String toHex(MessageDigest crypto) {
+        String hash = DigestUtils.shaHex(crypto.digest());
         return hash;
     }
 }

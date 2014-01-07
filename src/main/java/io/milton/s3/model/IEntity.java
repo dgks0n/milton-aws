@@ -26,11 +26,11 @@ public interface IEntity {
 	
 	void setName(final String name);
 	
-	IFolder getParent();
+	Folder getParent();
 	
-	void setParent(final IFolder parent);
+	void setParent(final Folder parent);
 	
-	void moveTo(final IFolder target);
+	void moveTo(final Folder target);
 	
 	/**
      * Copy the source object to the given parent and with the given name
@@ -42,5 +42,5 @@ public interface IEntity {
      * 
      * @return BaseEntity
      */
-	 IEntity copyTo(final IFolder target, final String targetName);
+	BaseEntity copyTo(final Folder target, final String targetName);
 }

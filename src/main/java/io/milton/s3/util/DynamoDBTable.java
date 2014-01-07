@@ -14,17 +14,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package io.milton.s3.model;
+package io.milton.s3.util;
 
-import java.util.List;
-
-public interface IFolder extends IEntity {
-
-	File addFile(final String fileName);
+public class DynamoDBTable {
 	
-	Folder addFolder(final String folderName);
-	
-	List<BaseEntity> getChildren();
-	
-	BaseEntity getChildren(final String entityName);
+	public static final String UUID = "UniqueId";
+	public static final String ENTITY_NAME = "EntityName";
+	public static final String PARENT_UUID = "ParentId";
+	public static final String BLOB_ID = "BlobId";
+	public static final String FILE_SIZE = "FileSize";
+	public static final String CONTENT_TYPE = "ContentType";
+	public static final String CREATED_DATE = "CreatedDate";
+	public static final String MODIFIED_DATE = "ModifiedDate";
 }

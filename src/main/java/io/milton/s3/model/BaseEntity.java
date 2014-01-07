@@ -46,10 +46,10 @@ public abstract class BaseEntity implements IEntity {
      */
     private Folder parent;
 
-    public BaseEntity(String name, IFolder parent) {
+    public BaseEntity(String name, Folder parent) {
     	this.id = UUID.randomUUID();
     	this.name = name;
-        this.parent = (Folder) parent;
+        this.parent = parent;
         this.createdDate = new Date();
         this.modifiedDate = new Date();
     }
@@ -87,13 +87,13 @@ public abstract class BaseEntity implements IEntity {
     }
 
     @Override
-    public IFolder getParent() {
+    public Folder getParent() {
         return parent;
     }
 
     @Override
-    public void setParent(final IFolder parent) {
-        this.parent = (Folder) parent;
+    public void setParent(final Folder parent) {
+        this.parent = parent;
     }
 
     /**
@@ -102,13 +102,13 @@ public abstract class BaseEntity implements IEntity {
      * @param target
      *            - the target folder
      */
-    public void moveTo(final IFolder target) {
+    public void moveTo(final Folder target) {
         this.modifiedDate = new Date();
         
         // Remove the source object
         parent.getChildren().remove(this);
         target.getChildren().add(this);
-        this.parent = (Folder) target;
+        this.parent = target;
     }
 
     /**
