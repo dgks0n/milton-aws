@@ -16,13 +16,15 @@
  */
 package io.milton.s3.db;
 
-import io.milton.s3.model.BaseEntity;
+import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
+import io.milton.s3.util.Crypt;
 import io.milton.s3.util.DynamoDBTable;
 
 import java.text.DateFormat;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -30,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
 import com.amazonaws.services.dynamodbv2.model.Condition;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
@@ -64,17 +66,12 @@ public class DynamoDBStore {
 	private static final Logger LOG = LoggerFactory.getLogger(DynamoDBStore.class);
 	
 	/**
-	 * Constructor
-	 */
-	public DynamoDBStore() {}
-	
-	/**
 	 * Important: Be sure to fill in your AWS access credentials in the
-     *            AwsCredentials.properties file before you try to run this
-     *            sample.
-     * http://aws.amazon.com/security-credentials
+	 * AwsCredentials.properties file before you try to run this class.
+	 * 
+	 * http://aws.amazon.com/security-credentials
 	 */
-	private AmazonDynamoDBClient dynamoDBClient;
+	private final AmazonDynamoDBClient dynamoDBClient;
 	
 	/**
      * The only information needed to create a client are security credentials
@@ -86,7 +83,7 @@ public class DynamoDBStore {
      * @see com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider
      * @see com.amazonaws.regions.Region
      */
-	public void openDynamoDB() throws Exception {
+	public DynamoDBStore() {
 		dynamoDBClient = new AmazonDynamoDBClient(new ClasspathPropertiesFileCredentialsProvider());
 		
 		// Set default region
@@ -170,32 +167,32 @@ public class DynamoDBStore {
 	}
 	
 	/**
-	 * Parser new item for the given informations (UniqueId, Name of item, Parent Id, Blob Id,...)
+	 * Parser new item for the given informations (UUID, Name of item, Parent Id, Blob Id,...)
 	 * 
-	 * @param uniqueId
-	 * @param itemName
-	 * @param parentId
-	 * @param blobId
-	 * @param fileSize
-	 * @param createdDate
-	 * @param modifiedDate
-	 * 
-	 * @return a map of item
-	 * @throws ParseException 
+	 * @param entity (File Or Folder)
+	 * @return Map
 	 */
-	public Map<String, AttributeValue> newItem(String uniqueId, String itemName, String parentId, String blobId, 
-	        int fileSize, String contentType, Date createdDate, Date modifiedDate) {
+	public Map<String, AttributeValue> newItem(Entity entity) {
+		Map<String, AttributeValue> newItem = new HashMap<String, AttributeValue>();
+		newItem.put(DynamoDBTable.UUID, new AttributeValue().withS(entity.getId()));
+		newItem.put(DynamoDBTable.ENTITY_NAME, new AttributeValue().withS(entity.getName()));
+		newItem.put(DynamoDBTable.PARENT_UUID, new AttributeValue().withS(entity.getParent().getId()));
 		
-	    Map<String, AttributeValue> newItem = new HashMap<String, AttributeValue>();
-	    newItem.put(DynamoDBTable.UUID, new AttributeValue().withS(uniqueId));
-	    newItem.put(DynamoDBTable.ENTITY_NAME, new AttributeValue().withS(itemName));
-	    newItem.put(DynamoDBTable.PARENT_UUID, new AttributeValue().withS(parentId));
-	    newItem.put(DynamoDBTable.BLOB_ID, new AttributeValue().withS(blobId));
+		int fileSize = 0;
+		String blobId = DynamoDBTable.NOT_EXIST;
+		String contentType = DynamoDBTable.NOT_EXIST;
+		if (entity instanceof File) {
+			blobId = Crypt.toHexFromByte(((File) entity).getBytes());
+			fileSize = (int) ((File) entity).getSize();
+			contentType = ((File) entity).getContentType();
+		}
+		
+		newItem.put(DynamoDBTable.BLOB_ID, new AttributeValue().withS(blobId));
 	    newItem.put(DynamoDBTable.FILE_SIZE, new AttributeValue().withN(Integer.toString(fileSize)));
 	    newItem.put(DynamoDBTable.CONTENT_TYPE, new AttributeValue().withS(contentType));
-	    newItem.put(DynamoDBTable.CREATED_DATE, new AttributeValue().withS(createdDate.toString()));
-	    newItem.put(DynamoDBTable.MODIFIED_DATE, new AttributeValue().withS(modifiedDate.toString()));
-        return newItem;
+	    newItem.put(DynamoDBTable.CREATED_DATE, new AttributeValue().withS(entity.getCreatedDate().toString()));
+	    newItem.put(DynamoDBTable.MODIFIED_DATE, new AttributeValue().withS(entity.getModifiedDate().toString()));
+		return newItem;
 	}
 	
 	/**
@@ -203,19 +200,20 @@ public class DynamoDBStore {
 	 * 
 	 * @param parent
 	 * @param tableName
-	 * @param fieldFilder
+	 * @param fieldFilter
 	 * @param condition
 	 * 
 	 * @return a list of entities
 	 * @throws ParseException 
 	 */
-	public List<BaseEntity> getChildren(Folder parent, String tableName, String fieldFilder, Condition condition) {
-	    List<Map<String, AttributeValue>> items = getItem(tableName, fieldFilder, condition);
-	    if (items.isEmpty())
-            Collections.emptyList();
+	public List<Entity> getChildren(Folder parent, String tableName, String fieldFilter, Condition condition) {
+	    List<Map<String, AttributeValue>> items = getItem(tableName, fieldFilter, condition);
+	    if (items.isEmpty()) {
+	    	Collections.emptyList();
+	    }
         
-	    final DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.DEFAULT);
-        List<BaseEntity> childrens = new ArrayList<BaseEntity>();
+	    final DateFormat dateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss Z yyyy");
+        List<Entity> childrens = new ArrayList<Entity>();
         for (Map<String, AttributeValue> item : items) {
             String blobId = item.get(DynamoDBTable.BLOB_ID).getS();
             String entityName = item.get(DynamoDBTable.ENTITY_NAME).getS();
@@ -229,7 +227,7 @@ public class DynamoDBStore {
 				LOG.warn(pe.getMessage());
 			}
             
-            if (StringUtils.isEmpty(blobId)) {
+            if (DynamoDBTable.NOT_EXIST.equals(blobId)) {
                 Folder folder = new Folder(entityName, parent);
                 folder.setCreatedDate(createdDate);
                 folder.setModifiedDate(modifiedDate);
@@ -256,8 +254,10 @@ public class DynamoDBStore {
 	 * @param condition
 	 * @return TRUE/FALSE
 	 */
-	public boolean isRootFolderCreated(String tableName, String fieldFilter, Condition condition) {
-	    List<Map<String, AttributeValue>> items = getItem(tableName, fieldFilter, condition);
+	public boolean isRootFolderCreated(String tableName, Folder rootFolder) {
+		Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
+	            .withAttributeValueList(new AttributeValue(rootFolder.getId()));
+	    List<Map<String, AttributeValue>> items = getItem(tableName, DynamoDBTable.UUID, condition);
 	    if (items.isEmpty())
 	        return false;
 	    return true;
@@ -280,9 +280,8 @@ public class DynamoDBStore {
             // Display current status of table
             String tableStatus = tableDescription.getTableStatus();
             LOG.info("Current state for table " + tableName + ": " + tableStatus);
-            if (tableStatus.equals(TableStatus.ACTIVE.toString())) {
-                return;
-            }
+            if (tableStatus.equals(TableStatus.ACTIVE.toString()))
+            	return;
             
             try {
                 Thread.sleep(1000 * 20);
@@ -310,9 +309,8 @@ public class DynamoDBStore {
                 TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
                 String tableStatus = tableDescription.getTableStatus();
                 LOG.info("Current state for table " + tableName + ": " + tableStatus);
-                if (tableStatus.equals(TableStatus.ACTIVE.toString())) {
-                    return;
-                }
+                if (tableStatus.equals(TableStatus.ACTIVE.toString()))
+                	return;
             } catch (ResourceNotFoundException rne) {
                 LOG.warn("Table " + tableName + " is not found. It was deleted.");
                 return;
@@ -334,8 +332,9 @@ public class DynamoDBStore {
         ScanResult scanResult = dynamoDBClient.scan(scanRequest);
         
         int count = scanResult.getCount();
-        if (count <= 0)
+        if (count <= 0) {
         	return Collections.emptyList();
+        }
         
 		LOG.info("Successful by getting items from " + tableName
 				+ " based on filter field: " + fieldFilter + "; Returning " + count + " of items");

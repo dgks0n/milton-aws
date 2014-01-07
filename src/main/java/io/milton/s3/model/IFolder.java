@@ -20,11 +20,11 @@ import java.util.List;
 
 public interface IFolder extends IEntity {
 
-	File addFile(final String fileName);
+	IFile addFile(final String fileName);
 	
-	Folder addFolder(final String folderName);
+	IFolder addFolder(final String folderName);
 	
-	List<BaseEntity> getChildren();
+	List<IEntity> getChildren();
 	
-	BaseEntity getChildren(final String entityName);
+	IEntity getChildren(final String entityName);
 }

@@ -18,6 +18,8 @@ package io.milton.s3.util;
 
 public class DynamoDBTable {
 	
+	public static final String NOT_EXIST = "NONE";
+	
 	public static final String UUID = "UniqueId";
 	public static final String ENTITY_NAME = "EntityName";
 	public static final String PARENT_UUID = "ParentId";

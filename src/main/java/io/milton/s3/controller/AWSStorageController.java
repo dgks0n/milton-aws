@@ -20,6 +20,7 @@ import io.milton.annotations.ChildrenOf;
 import io.milton.annotations.ContentLength;
 import io.milton.annotations.Copy;
 import io.milton.annotations.DisplayName;
+import io.milton.annotations.Get;
 import io.milton.annotations.MakeCollection;
 import io.milton.annotations.Move;
 import io.milton.annotations.Name;
@@ -27,13 +28,15 @@ import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
 import io.milton.annotations.Root;
 import io.milton.s3.db.DynamoDBStore;
-import io.milton.s3.model.BaseEntity;
+import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.util.Crypt;
+import io.milton.s3.model.IFile;
 import io.milton.s3.util.DynamoDBTable;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,55 +55,50 @@ public class AWSStorageController {
 
     private static final Logger LOG = LoggerFactory.getLogger(AWSStorageController.class);
     
-    private static final String NOT_EXIST = "NONE";
-    
     private static final String DYNAMODB_TABLE_NAME = "milton-s3-demo";
     
     /**
      * Amazon DynamoDB Storage
      */
-    private DynamoDBStore dynamoDBStore = new DynamoDBStore();
+    private final DynamoDBStore dynamoDBStore;
     
     /**
      * Initialize Amazon DynamoDB environment
      * 
      * @throws Exception
      */
-    protected void openDynamoDBStorage(String tableName) throws Exception {
-        LOG.info("Creating table " + tableName + " in Amazon DynamoDB");
+    public AWSStorageController() throws Exception {
+        LOG.info("Creating table " + DYNAMODB_TABLE_NAME + " in Amazon DynamoDB");
         
-        dynamoDBStore.openDynamoDB();
-        dynamoDBStore.createTable(tableName);
-        dynamoDBStore.describeTable(tableName);
+        dynamoDBStore = new DynamoDBStore();
+        dynamoDBStore.createTable(DYNAMODB_TABLE_NAME);
+        
+        // Describe the table for the given table after created
+        dynamoDBStore.describeTable(DYNAMODB_TABLE_NAME);
     }
     
     /**
      * Return the root folder. Also annotated for Milton to use
      * as a root.
      * 
-     * @return
+     * @return Folder
      * @throws Exception 
      */
     @Root
     public Folder getRootFolder() throws Exception {
-        
-        openDynamoDBStorage(DYNAMODB_TABLE_NAME);
-        // Root folder
+    	LOG.info("Getting root folder [/] and create if it is not exist..");
+    	
+        // Root folder [/]
         Folder rootFolder = new Folder("/", null);
         
-        LOG.info("Getting root folder and create if it is not exist..");
-        String uniqueId = Crypt.toHexFromText(rootFolder.getName());
-        Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-            .withAttributeValueList(new AttributeValue(uniqueId));
-        
         // Create Root folder if it is not exist
-        boolean isRootFolderCreated = dynamoDBStore.isRootFolderCreated(DYNAMODB_TABLE_NAME, DynamoDBTable.UUID, condition);
+        boolean isRootFolderCreated = dynamoDBStore.isRootFolderCreated(DYNAMODB_TABLE_NAME, rootFolder);
         if (!isRootFolderCreated) {
-            Map<String, AttributeValue> item = dynamoDBStore.newItem(uniqueId, rootFolder.getName(), NOT_EXIST, NOT_EXIST, 0, 
-                    NOT_EXIST, rootFolder.getCreatedDate(), rootFolder.getModifiedDate());
-            
+            Map<String, AttributeValue> item = dynamoDBStore.newItem(rootFolder);
             // Store in the Amazon DynamoDB
             dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+        } else {
+        	LOG.info("Root folder [/] already created in the table " + DYNAMODB_TABLE_NAME);
         }
         return rootFolder;
     }
@@ -118,17 +116,16 @@ public class AWSStorageController {
      * @throws ParseException 
      */
     @ChildrenOf
-    public List<BaseEntity> getChildren(Folder parent) {
-        if (parent == null)
-            return Collections.emptyList();
+    public List<Entity> getChildren(Folder parent) {
+        if (parent == null) {
+        	return Collections.emptyList();
+        }
         
-        // Get UUID depends on parent folder name
-        String parentId = Crypt.toHexFromText(parent.getName());
         Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-            .withAttributeValueList(new AttributeValue(parentId));
+            .withAttributeValueList(new AttributeValue(parent.getId()));
         
         // Get all entities form Amazon DynamoDB
-        List<BaseEntity> children = dynamoDBStore.getChildren(parent, DYNAMODB_TABLE_NAME, DynamoDBTable.PARENT_UUID, condition);
+        List<Entity> children = dynamoDBStore.getChildren(parent, DYNAMODB_TABLE_NAME, DynamoDBTable.PARENT_UUID, condition);
         LOG.info("Getting childrens of " + parent.getName() + "; Returning " + children.size() + " children of " + parent.getName());
         return children;
     }
@@ -138,13 +135,8 @@ public class AWSStorageController {
         LOG.info("Creating folder " + folderName + " in " + parent.getName());
         
         // Create new folder for the given name
-        Folder newFolder = parent.addFolder(folderName);
-        
-        // Get UUID depends on folder name
-        String uniqueId = Crypt.toHexFromText(folderName);
-        String parentId = Crypt.toHexFromText(parent.getName());
-        Map<String, AttributeValue> item = dynamoDBStore.newItem(uniqueId, folderName, parentId, NOT_EXIST, 0,
-                NOT_EXIST, newFolder.getCreatedDate(), newFolder.getModifiedDate());
+        Folder newFolder = (Folder) parent.addFolder(folderName);
+        Map<String, AttributeValue> item = dynamoDBStore.newItem(newFolder);
         
         // Store in the Amazon DynamoDB
         dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
@@ -152,28 +144,34 @@ public class AWSStorageController {
     }
     
     @Name
-    public String getResource(BaseEntity entity) {
+    public String getResource(Entity entity) {
         return entity.getName();
     }
     
     @DisplayName
-    public String getDisplayName(BaseEntity entity) {
+    public String getDisplayName(Entity entity) {
         return entity.getName();
     }
     
     @PutChild
     public File createFile(Folder parent, String newName, byte[] bytes) {
-        LOG.info("Creating file with Name: " + newName + "; Size of upload: "
-                + bytes.length + " in the folder " + parent.getName());
+        LOG.info("Creating file with Name: " + newName + "; Size of upload: " + bytes.length + " in the folder " + parent.getName());
         
-        File file = parent.addFile(newName);
-        file.setBytes(bytes);
-        return file;
+        // Create a file and store into Amazon DynamoDB
+        File newFile = (File) parent.addFile(newName);
+        newFile.setBytes(bytes);
+        newFile.setSize(bytes.length);
+        Map<String, AttributeValue> item = dynamoDBStore.newItem(newFile);
+        
+        // Store in the Amazon DynamoDB
+        dynamoDBStore.putItem(DYNAMODB_TABLE_NAME, item);
+        return newFile;
     }
     
     @Move
     public void move(File file, Folder newParent, String newName) {
         LOG.info("Moving file " + file.getName() + " to " + newName + " in " + newParent.getName());
+        
         if (file.getParent() != newParent) {
             newParent.getChildren().add(file);
             file.setParent(newParent);
@@ -203,7 +201,14 @@ public class AWSStorageController {
     @ContentLength
     public Long fileContentLength(File file) {
     	Long fileSize = new Long(file.getBytes().length);
+    	
     	LOG.info("Getting size of " + file.getName() + "; Returning " + fileSize + " bytes");
         return fileSize;
+    }
+    
+    @Get
+    public InputStream getFile(IFile file) throws IOException {
+    	InputStream inputStream = new FileInputStream(file.getName());
+    	return inputStream;
     }
 }

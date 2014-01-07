@@ -16,15 +16,16 @@
  */
 package io.milton.s3.model;
 
-import java.util.Date;
-import java.util.UUID;
+import io.milton.s3.util.Crypt;
 
-public abstract class BaseEntity implements IEntity {
+import java.util.Date;
+
+public abstract class Entity implements IEntity {
 
 	/**
 	 * UUID is unique ID
 	 */
-    private UUID id;
+    private String id;
     
     /**
      * Name of entity
@@ -46,16 +47,16 @@ public abstract class BaseEntity implements IEntity {
      */
     private Folder parent;
 
-    public BaseEntity(String name, Folder parent) {
-    	this.id = UUID.randomUUID();
+    public Entity(String name, IFolder parent) {
+    	this.id = Crypt.toHexFromText(name);
     	this.name = name;
-        this.parent = parent;
+        this.parent = (Folder) parent;
         this.createdDate = new Date();
         this.modifiedDate = new Date();
     }
 
     @Override
-    public UUID getId() {
+    public String getId() {
         return id;
     }
 
@@ -87,13 +88,13 @@ public abstract class BaseEntity implements IEntity {
     }
 
     @Override
-    public Folder getParent() {
+    public IFolder getParent() {
         return parent;
     }
 
     @Override
-    public void setParent(final Folder parent) {
-        this.parent = parent;
+    public void setParent(final IFolder parent) {
+        this.parent = (Folder) parent;
     }
 
     /**
@@ -102,19 +103,25 @@ public abstract class BaseEntity implements IEntity {
      * @param target
      *            - the target folder
      */
-    public void moveTo(final Folder target) {
+    public void moveTo(final IFolder target) {
         this.modifiedDate = new Date();
         
         // Remove the source object
         parent.getChildren().remove(this);
         target.getChildren().add(this);
-        this.parent = target;
+        this.parent = (Folder) target;
     }
 
     /**
      * Remove current entity
      */
     public void delete() {
+    	if (this.getParent() == null)
+    		throw new RuntimeException("Attempt to delete root");
+    		
+    	if (parent.getChildren() == null)
+    		throw new NullPointerException("Children is null");
+    	
         parent.getChildren().remove(this);
     }
 }

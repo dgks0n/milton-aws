@@ -16,21 +16,19 @@
  */
 package io.milton.s3.model;
 
-import java.util.UUID;
-
 public interface IEntity {
 	
-	UUID getId();
+	String getId();
 	
 	String getName();
 	
 	void setName(final String name);
 	
-	Folder getParent();
+	IFolder getParent();
 	
-	void setParent(final Folder parent);
+	void setParent(final IFolder parent);
 	
-	void moveTo(final Folder target);
+	void moveTo(final IFolder target);
 	
 	/**
      * Copy the source object to the given parent and with the given name
@@ -42,5 +40,5 @@ public interface IEntity {
      * 
      * @return BaseEntity
      */
-	BaseEntity copyTo(final Folder target, final String targetName);
+	IEntity copyTo(final IFolder target, final String targetName);
 }
