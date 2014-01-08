@@ -16,17 +16,15 @@
  */
 package io.milton.s3.model;
 
-import io.milton.s3.util.Crypt;
-
-import java.io.File;
 import java.util.Date;
+import java.util.UUID;
 
 public abstract class Entity implements IEntity {
 
 	/**
 	 * UUID is unique ID
 	 */
-    private String id;
+    private UUID id;
     
     /**
      * Name of entity
@@ -42,11 +40,6 @@ public abstract class Entity implements IEntity {
      * Modified date of entity
      */
     private Date modifiedDate;
-    
-    /**
-     * Stored full path of entity
-     */
-    private String localPath;
 
     /**
      * Parent folder entity
@@ -54,22 +47,31 @@ public abstract class Entity implements IEntity {
     private Folder parent;
 
     public Entity(String name, IFolder parent) {
-    	this.id = Crypt.toHexFromText(name);
+    	this.id = UUID.randomUUID();
     	this.name = name;
         this.parent = (Folder) parent;
         this.createdDate = new Date();
         this.modifiedDate = new Date();
-        
-        if (this.parent != null)
-            this.localPath = this.parent.getLocalPath() + File.separatorChar + getName();
     }
+    
+    public Entity(UUID id, String name, Date createdDate, Date modifiedDate, IFolder parent) {
+		this.id = id;
+		this.name = name;
+		this.parent = (Folder) parent;
+		this.createdDate = createdDate;
+		this.modifiedDate = modifiedDate;
+	}
 
-    @Override
-    public String getId() {
+	@Override
+    public UUID getId() {
         return id;
     }
+    
+    public void setId(UUID id) {
+		this.id = id;
+	}
 
-    @Override
+	@Override
     public String getName() {
         return name;
     }
@@ -105,26 +107,6 @@ public abstract class Entity implements IEntity {
     public void setParent(final IFolder parent) {
         this.parent = (Folder) parent;
     }
-    
-    @Override
-    public String getLocalPath() {
-        return this.localPath;
-    }
-
-    public void setLocalPath(String localPath) {
-        this.localPath = localPath;
-    }
-    
-    @Override
-    public String getFullPathName() {
-        if (parent == null) {
-            return this.name;
-        } else if (parent.getParent() == null) {
-            return parent.getFullPathName() + getName();
-        } else {
-            return parent.getFullPathName() + File.separatorChar + getName();
-        }
-    }
 
     /**
      * Move the source object to the given parent and with the given name
@@ -146,10 +128,10 @@ public abstract class Entity implements IEntity {
      */
     public void delete() {
     	if (this.getParent() == null)
-    		throw new RuntimeException("Attempt to delete root");
+    		throw new RuntimeException("Attempt to delete root folder");
     		
     	if (parent.getChildren() == null)
-    		throw new NullPointerException("Children is null");
+    		throw new NullPointerException("Children of root folder is null");
     	
         parent.getChildren().remove(this);
     }

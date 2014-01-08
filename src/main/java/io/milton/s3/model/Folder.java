@@ -17,8 +17,10 @@
 package io.milton.s3.model;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 public class Folder extends Entity implements IFolder {
     
@@ -31,11 +33,13 @@ public class Folder extends Entity implements IFolder {
         super(folderName, parent);
     }
     
-    @Override
+    public Folder(UUID id, String name, Date createdDate, Date modifiedDate, IFolder parent) {
+    	super(id, name, createdDate, modifiedDate, parent);
+	}
+
+	@Override
     public synchronized IFile addFile(final String fileName) {
         File file = new File(fileName, this);
-        // Calculate local path for entity
-        file.setLocalPath(getLocalPath() + java.io.File.separator + file.getName());
         childrens.add(file);
         return file;
     }
@@ -43,8 +47,6 @@ public class Folder extends Entity implements IFolder {
     @Override
     public synchronized IFolder addFolder(final String folderName) {
         Folder folder = new Folder(folderName, this);
-        // Calculate local path for entity
-        folder.setLocalPath(getLocalPath() + java.io.File.separator + folder.getName());
         childrens.add(folder);
         return folder;
     }

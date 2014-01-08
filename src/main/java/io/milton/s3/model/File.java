@@ -16,10 +16,13 @@
  */
 package io.milton.s3.model;
 
-import java.io.FileInputStream;
+import io.milton.common.BufferingOutputStream;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLConnection;
+import java.util.Date;
+import java.util.UUID;
 
 import javax.activation.MimetypesFileTypeMap;
 
@@ -37,6 +40,7 @@ public class File extends Entity implements IFile {
 
     public File(String fileName, IFolder parent) {
         super(fileName, parent);
+        
         this.contentType = getContentTypeFromName();
     }
     
@@ -48,7 +52,14 @@ public class File extends Entity implements IFile {
         this.contentType = getContentTypeFromName();
     }
 
-    @Override
+    public File(UUID id, String name, Date createdDate, Date modifiedDate, IFolder parent, byte[] bytes) {
+		super(id, name, createdDate, modifiedDate, parent);
+		
+		this.bytes = bytes;
+		this.contentType = getContentTypeFromName();
+	}
+
+	@Override
     public byte[] getBytes() {
         return bytes;
     }
@@ -98,6 +109,9 @@ public class File extends Entity implements IFile {
 
     @Override
     public InputStream getInputStream() throws IOException {
-        return new FileInputStream(getLocalPath());
+    	BufferingOutputStream bufferOutput = new BufferingOutputStream(10);
+    	bufferOutput.write(getBytes());
+    	bufferOutput.close();
+    	return bufferOutput.getInputStream();
     }
 }

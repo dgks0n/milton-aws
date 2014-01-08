@@ -14,33 +14,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package io.milton.s3.model;
+package io.milton.s3.util;
 
-import java.util.UUID;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
-public interface IEntity {
+public class DateUtils {
+
+	public static final DateFormat dateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss Z yyyy");
 	
-	UUID getId();
+	public static Date getDateFromString(String dateString) {
+    	Date date = null;
+    	try {
+    		date = dateFormat.parse(dateString);
+		} catch (ParseException pe) {
+			// TODO: Edit here
+		}
+    	return date;
+    }
 	
-	String getName();
-	
-	void setName(final String name);
-	
-	IFolder getParent();
-	
-	void setParent(final IFolder parent);
-	
-	void moveTo(final IFolder target);
-	
-	/**
-     * Copy the source object to the given parent and with the given name
-     * 
-     * @param target
-     *            - the target folder
-     * @param targetName
-     *            - the target name
-     * 
-     * @return BaseEntity
-     */
-	IEntity copyTo(final IFolder target, final String targetName);
 }

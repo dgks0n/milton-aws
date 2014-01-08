@@ -52,17 +52,14 @@ public interface DynamoDBService {
     
     Map<String, AttributeValue> getItem(HashMap<String, AttributeValue> primaryKey);
     
-    List<Map<String, AttributeValue>> getItems(HashMap<String, AttributeValue> primaryKey);
+    List<Map<String, AttributeValue>> getItem(Map<String, Condition> conditions);
     
-    List<Map<String, AttributeValue>> getItems(Map<String, Condition> conditions);
-    
-    UpdateItemResult updateItem(HashMap<String, AttributeValue> primaryKey, Map<String, AttributeValueUpdate> updateItems);
+    UpdateItemResult updateItem(HashMap<String, AttributeValue> primaryKey, 
+    		Map<String, AttributeValueUpdate> updateItems);
     
     DeleteItemResult deleteItem(HashMap<String, AttributeValue> primaryKey);
     
-    List<Entity> getChildren(IFolder parent, HashMap<String, AttributeValue> primaryKey);
-    
     List<Entity> getChildren(IFolder parent, Map<String, Condition> conditions);
     
-    boolean isRootFolderCreated(IFolder rootFolder);
+    IFolder getRootFolder();
 }

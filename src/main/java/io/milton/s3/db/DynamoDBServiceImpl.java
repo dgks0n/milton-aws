@@ -16,6 +16,7 @@
  */
 package io.milton.s3.db;
 
+import io.milton.s3.db.mapper.DynamoDBEntityMapper;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
@@ -24,12 +25,8 @@ import io.milton.s3.model.IFolder;
 import io.milton.s3.util.AttributeKey;
 import io.milton.s3.util.Crypt;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +40,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
-import com.amazonaws.services.dynamodbv2.model.BatchGetItemRequest;
-import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
 import com.amazonaws.services.dynamodbv2.model.Condition;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
@@ -57,7 +53,6 @@ import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
 import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
-import com.amazonaws.services.dynamodbv2.model.KeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
@@ -100,6 +95,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     public DynamoDBServiceImpl(Region region, String repository) {
         this.repository = repository;
         
+        LOG.info("Initialize Amazon DynamoDB environment...!!!");
         dynamoDBClient = new AmazonDynamoDBClient(new ClasspathPropertiesFileCredentialsProvider());
         dynamoDBClient.setRegion(region);
     }
@@ -107,10 +103,12 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     @Override
     public void createTable() {
         List<AttributeDefinition> attributeDefinitions= new ArrayList<AttributeDefinition>();
-        attributeDefinitions.add(new AttributeDefinition().withAttributeName(AttributeKey.UUID).withAttributeType(ScalarAttributeType.S));
+        attributeDefinitions.add(new AttributeDefinition().withAttributeName(AttributeKey.UUID)
+        		.withAttributeType(ScalarAttributeType.S));
         
         List<KeySchemaElement> keySchemaElement = new ArrayList<KeySchemaElement>();
-        keySchemaElement.add(new KeySchemaElement().withAttributeName(AttributeKey.UUID).withKeyType(KeyType.HASH));
+        keySchemaElement.add(new KeySchemaElement().withAttributeName(AttributeKey.UUID)
+        		.withKeyType(KeyType.HASH));
         
         ProvisionedThroughput provisionedThroughput = new ProvisionedThroughput()
             .withReadCapacityUnits(10L)
@@ -141,7 +139,8 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         long endTime = startTime + (10 * 60 * 1000);
         while (System.currentTimeMillis() < endTime) {
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
+            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest)
+            		.getTable();
             
             // Display current status of table
             String tableStatus = tableDescription.getTableStatus();
@@ -163,8 +162,10 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     public TableDescription describeTable() {
         DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
         TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
+        if (tableDescription != null) {
+        	LOG.info("Table description for " + repository + ": " + tableDescription);
+        }
         
-        LOG.info("Table description: " + tableDescription);
         return tableDescription;
     }
 
@@ -172,9 +173,11 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     public void deleteTable() {
         DeleteTableRequest deleteTableRequest = new DeleteTableRequest().withTableName(repository);
         DeleteTableResult deleteTableResult = dynamoDBClient.deleteTable(deleteTableRequest);
+        if (deleteTableRequest != null) {
+        	LOG.info("Delete description for " + repository + ": " + deleteTableResult);
+        }
         
         waitForTableDeleted();
-        LOG.info("Delete result: " + deleteTableResult);
     }
 
     @Override
@@ -186,7 +189,8 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         while (System.currentTimeMillis() < endTime) {
             try {
                 DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-                TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
+                TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest)
+                		.getTable();
                 String tableStatus = tableDescription.getTableStatus();
                 LOG.info("Current state for table " + repository + ": " + tableStatus);
                 if (tableStatus.equals(TableStatus.ACTIVE.toString()))
@@ -217,9 +221,16 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     @Override
     public Map<String, AttributeValue> newItem(IEntity entity) {
         Map<String, AttributeValue> newItem = new HashMap<String, AttributeValue>();
-        newItem.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId()));
+        newItem.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId().toString()));
         newItem.put(AttributeKey.ENTITY_NAME, new AttributeValue().withS(entity.getName()));
-        newItem.put(AttributeKey.PARENT_UUID, new AttributeValue().withS(entity.getParent().getId()));
+        
+        // Get folder parent UUID
+        String parentUniqueId = AttributeKey.NOT_EXIST;
+        Folder folder = (Folder) entity.getParent();
+        if (folder != null)
+        	parentUniqueId = folder.getId().toString();
+        
+        newItem.put(AttributeKey.PARENT_UUID, new AttributeValue().withS(parentUniqueId));
         
         int fileSize = 0;
         String blobId = AttributeKey.NOT_EXIST;
@@ -233,8 +244,10 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         newItem.put(AttributeKey.BLOB_ID, new AttributeValue().withS(blobId));
         newItem.put(AttributeKey.FILE_SIZE, new AttributeValue().withN(Integer.toString(fileSize)));
         newItem.put(AttributeKey.CONTENT_TYPE, new AttributeValue().withS(contentType));
-        newItem.put(AttributeKey.CREATED_DATE, new AttributeValue().withS(((Entity) entity).getCreatedDate().toString()));
-        newItem.put(AttributeKey.MODIFIED_DATE, new AttributeValue().withS(((Entity) entity).getModifiedDate().toString()));
+        newItem.put(AttributeKey.CREATED_DATE, new AttributeValue().withS(((Entity) entity)
+        		.getCreatedDate().toString()));
+        newItem.put(AttributeKey.MODIFIED_DATE, new AttributeValue().withS(((Entity) entity)
+        		.getModifiedDate().toString()));
         return newItem;
     }
 
@@ -251,7 +264,8 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             PutItemRequest putItemRequest = new PutItemRequest(repository, item);
             PutItemResult putItemResult = dynamoDBClient.putItem(putItemRequest);
             
-            LOG.info("Putted item result: " + putItemResult);
+			LOG.info("Putted item " + item.toString() + " into " + repository
+					+ "; Putted status: " + putItemResult);
             return putItemResult;
         } catch (Exception ex) {
             LOG.error("Failed to put given item into the " + repository, ex);
@@ -261,49 +275,44 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     
     @Override
     public Map<String, AttributeValue> getItem(HashMap<String, AttributeValue> primaryKey) {
-        GetItemRequest getItemRequest = new GetItemRequest().withTableName(repository).withKey(primaryKey);
-        GetItemResult getItemResult = dynamoDBClient.getItem(getItemRequest);
-        Map<String, AttributeValue> item = getItemResult.getItem();
-        
-        LOG.info("Getting result from " + repository + ": " + item + "; Returning " + item.size() + " items");
-        return item;
+    	try {
+    		GetItemRequest getItemRequest = new GetItemRequest().withTableName(repository)
+    				.withKey(primaryKey);
+            GetItemResult getItemResult = dynamoDBClient.getItem(getItemRequest);
+            Map<String, AttributeValue> item = getItemResult.getItem();
+            if (item == null || item.isEmpty()) {
+				LOG.warn("Could not find any item for the given UUID: "
+						+ primaryKey + " from " + repository);
+            	return Collections.emptyMap();
+            }
+            
+			LOG.info("Getting result from " + repository + ": " + item
+					+ "; Returning " + item.size() + " items");
+            return item;
+		} catch (Exception ex) {
+			LOG.error("Failed to get item into the " + repository, ex);
+		}
+    	
+        return Collections.emptyMap();
     }
     
     @Override
-    public List<Map<String, AttributeValue>> getItems(HashMap<String, AttributeValue> primaryKey) {
-        ArrayList<Map<String, AttributeValue>> keys = new ArrayList<Map<String, AttributeValue>>();
-        keys.add(primaryKey);
-        
-        HashMap<String, KeysAndAttributes> requestItems = new HashMap<String, KeysAndAttributes>();
-        requestItems.put(repository, new KeysAndAttributes().withKeys(keys));
-        
-        BatchGetItemRequest batchGetItemRequest = new BatchGetItemRequest()
-            .withRequestItems(requestItems);
-        BatchGetItemResult batchGetItemResult = dynamoDBClient.batchGetItem(batchGetItemRequest);
-        List<Map<String, AttributeValue>> items = batchGetItemResult.getResponses().get(repository);
-        if (items.size() == 0) {
-            LOG.info("Could not get any items from " + repository);
-            return Collections.emptyList();
-        }
-        
-        LOG.info("Getting result from " + repository + ": " + items);
-        return items;
-    }
-    
-    @Override
-    public List<Map<String, AttributeValue>> getItems(Map<String, Condition> conditions) {
+    public List<Map<String, AttributeValue>> getItem(Map<String, Condition> conditions) {
         ScanRequest scanRequest = new ScanRequest(repository).withScanFilter(conditions);
         ScanResult scanResult = dynamoDBClient.scan(scanRequest);
         int count = scanResult.getCount();
         if (count == 0)
             return Collections.emptyList();
         
-        LOG.info("Successful by getting items from " + repository + " based on filter field: " + repository + "; Returning " + count + " of items");
+		LOG.info("Successful by getting items from " + repository
+				+ " based on conditions: " + conditions.toString()
+				+ "; Returning " + count + " of items");
         return scanResult.getItems();
     }
     
     @Override
-    public UpdateItemResult updateItem(HashMap<String, AttributeValue> primaryKey, Map<String, AttributeValueUpdate> updateItems) {
+    public UpdateItemResult updateItem(HashMap<String, AttributeValue> primaryKey, Map<String, 
+    		AttributeValueUpdate> updateItems) {
         Map<String, AttributeValueUpdate> attributeValueUpdates = new HashMap<String, AttributeValueUpdate>();
         attributeValueUpdates.putAll(updateItems);
         
@@ -313,7 +322,8 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             .withAttributeUpdates(updateItems);
         
         UpdateItemResult updateItemResult = dynamoDBClient.updateItem(updateItemRequest);
-        LOG.info("Successful by updating item in " + repository + "; Updated result: " + updateItemResult); 
+		LOG.info("Successful by updating item from " + repository
+				+ "; Updated result: " + updateItemResult); 
         return updateItemResult;
     }
 
@@ -327,64 +337,30 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         LOG.info("Successful by deleting item in " + repository);
         return deleteItemResult;
     }
-    
-    @Override
-    public List<Entity> getChildren(IFolder parent, HashMap<String, AttributeValue> primaryKey) {
-        return convertItemsToEntities(parent, getItems(primaryKey));
-    }
 
     @Override
     public List<Entity> getChildren(IFolder parent, Map<String, Condition> conditions) {
-        return convertItemsToEntities(parent, getItems(conditions));
-    }
-
-    @Override
-    public boolean isRootFolderCreated(IFolder rootFolder) {
-        HashMap<String, AttributeValue> key = new HashMap<String, AttributeValue>();
-        key.put(AttributeKey.UUID, new AttributeValue().withS(rootFolder.getId()));
-        Map<String, AttributeValue> item = getItem(key);
-        if (item.isEmpty())
-            return false;
-        
-        return true;
+    	List<Map<String, AttributeValue>> items = getItem(conditions);
+        return DynamoDBEntityMapper.convertItemsToEntities(parent, items);
     }
     
-    private List<Entity> convertItemsToEntities(IFolder parent, List<Map<String, AttributeValue>> items) {
-        if (items.isEmpty()) {
-            Collections.emptyList();
+    @Override
+	public IFolder getRootFolder() {
+        Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
+                .withAttributeValueList(new AttributeValue().withS(AttributeKey.NOT_EXIST));
+            
+        Map<String, Condition> conditions = new HashMap<String, Condition>();
+        conditions.put(AttributeKey.PARENT_UUID, condition);
+            
+        List<Entity> entities = getChildren(null, conditions);
+        if (entities != null && !entities.isEmpty()) {
+        	Entity entity = entities.get(0);
+    		if (entity instanceof Folder)
+    			return (IFolder) entity;
         }
         
-        final DateFormat dateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss Z yyyy");
-        List<Entity> childrens = new ArrayList<Entity>();
-        for (Map<String, AttributeValue> item : items) {
-            String blobId = item.get(AttributeKey.BLOB_ID).getS();
-            String entityName = item.get(AttributeKey.ENTITY_NAME).getS();
-            
-            Date createdDate = null;
-            Date modifiedDate = null;
-            try {
-                createdDate = dateFormat.parse(item.get(AttributeKey.CREATED_DATE).getS());
-                modifiedDate = dateFormat.parse(item.get(AttributeKey.MODIFIED_DATE).getS());
-            } catch (ParseException pe) {
-                LOG.warn(pe.getMessage());
-            }
-            
-            if (AttributeKey.NOT_EXIST.equals(blobId)) {
-                Folder folder = new Folder(entityName, parent);
-                folder.setCreatedDate(createdDate);
-                folder.setModifiedDate(modifiedDate);
-                childrens.add(folder);
-            } else {
-                File file = new File(entityName, parent);
-                file.setCreatedDate(createdDate);
-                file.setModifiedDate(modifiedDate);
-                file.setBytes(blobId.getBytes());
-                file.setContentType(item.get(AttributeKey.CONTENT_TYPE).getS());
-                file.setSize(new Long(item.get(AttributeKey.FILE_SIZE).getN()));
-                childrens.add(file);
-            }
-        }
-        
-        return childrens;
-    }
+        LOG.warn("Could not find item for the given " + conditions.toString() + " from " + repository);
+		return null;
+	}
+    
 }
