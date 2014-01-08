@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-package io.milton.s3.db.client;
+package io.milton.s3;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,9 +44,9 @@ import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
 import com.amazonaws.services.dynamodbv2.model.Condition;
 import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
 
-public class DynamoDBClient {
+public class DynamoDBManagerImpl implements DynamoDBManager {
 
-	private static final Logger LOG = LoggerFactory.getLogger(DynamoDBClient.class);
+	private static final Logger LOG = LoggerFactory.getLogger(DynamoDBManagerImpl.class);
 	
 	/**
      * Amazon DynamoDB Storage Service
@@ -59,7 +59,7 @@ public class DynamoDBClient {
      * @param repository
      * 				- the table name
      */
-    public DynamoDBClient(String repository) {
+    public DynamoDBManagerImpl(String repository) {
     	this(Region.getRegion(Regions.US_WEST_2), repository);
     }
     
@@ -67,11 +67,12 @@ public class DynamoDBClient {
      * Initialize Amazon DynamoDB environment for the given repository
      * 
      * @param region
-     * 				- the region
+     *            - You can choose the geographical Region where Amazon S3 will
+     *            store the buckets you create
      * @param repository
-     * 				- the table name
+     *            - Table name
      */
-	public DynamoDBClient(Region region, String repository) {
+	public DynamoDBManagerImpl(Region region, String repository) {
 		dynamoDBService = new DynamoDBServiceImpl(region, repository);
 		if (!dynamoDBService.isTableExist()) {
             LOG.info("Creating table " + repository + " in Amazon DynamoDB...!!!");
@@ -89,6 +90,7 @@ public class DynamoDBClient {
 	 * @param entity
 	 * @return
 	 */
+	@Override
 	public boolean putEntity(IEntity entity) {
 		boolean isSuccess = false;
 		if (entity == null)
@@ -106,6 +108,7 @@ public class DynamoDBClient {
 	 * 
 	 * @return
 	 */
+	@Override
 	public IFolder findRootFolder() {
 		return dynamoDBService.getRootFolder();
 	}
@@ -117,6 +120,7 @@ public class DynamoDBClient {
 	 * @param entity
 	 * @return
 	 */
+	@Override
 	public IEntity findEntityByUniqueId(IEntity entity) {
 		if (entity == null)
 			return null;
@@ -135,6 +139,7 @@ public class DynamoDBClient {
 	 * @param parent
 	 * @return
 	 */
+	@Override
 	public List<Entity> findEntityByParent(Folder parent) {
 		if (parent == null)
 			return Collections.emptyList();
@@ -160,6 +165,7 @@ public class DynamoDBClient {
 	 * 				- TRUE is renaming file, otherwise FALSE
 	 * @return TRUE/FALSE
 	 */
+	@Override
 	public boolean updateEntityByUniqueId(IFile file, IFolder newParent, String newEntityName, boolean isRenaming) {
 		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue>();
         primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(file.getId().toString()));
@@ -187,6 +193,7 @@ public class DynamoDBClient {
 	 * @param uniqueId
 	 * @return
 	 */
+	@Override
 	public boolean deleteEntityByUniqueId(String uniqueId) {
 		boolean isSuccess = false;
 		if (StringUtils.isEmpty(uniqueId))

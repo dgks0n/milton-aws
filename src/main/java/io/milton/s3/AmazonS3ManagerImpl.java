@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -37,77 +36,116 @@ import com.amazonaws.services.s3.model.Permission;
 import com.amazonaws.services.s3.model.S3Object;
 
 public class AmazonS3ManagerImpl implements AmazonS3Manager {
-    
+
     private static final Logger LOG = LoggerFactory.getLogger(AmazonS3ManagerImpl.class);
-    
+
     private static final String GROUPS_USERS = "http://acs.amazonaws.com/groups/global/AllUsers";
+
+    private static final String ENDPOINT_START = "s3-";
+    private static final String ENDPOINT_END = ".amazonaws.com";
+    private static final String ENDPOINT_STANDARD = "s3.amazonaws.com";
+
+    private final AmazonS3 amazonS3Client;
+    private final String regionEndpoint;
     
-    private static final String AWS_END_POINT_START = "s3-";
-    private static final String AWS_END_POINT_END = ".amazonaws.com";
+    private final String bucketName;
 
-    private static final String AWS_END_POINT_STANDARD = "s3.amazonaws.com";
-    
-    private AWSCredentialsProvider credentialsProvider;
-    private AmazonS3 storageService;
-    private String endpoint;
-    
-    public AmazonS3ManagerImpl(String region) {
-        credentialsProvider = new ClasspathPropertiesFileCredentialsProvider();
-        storageService = new AmazonS3Client(credentialsProvider);
-        if (!region.equals(AWS_END_POINT_STANDARD)) {
-            endpoint = AWS_END_POINT_START + region + AWS_END_POINT_END;
-        } else {
-            endpoint = AWS_END_POINT_STANDARD;
-        }
+    /**
+     * You can choose the geographical region where Amazon S3 will store the
+     * buckets you create. You might choose a region to optimize latency,
+     * minimize costs, or address regulatory requirements.
+     * 
+     * @param region
+     */
+    public AmazonS3ManagerImpl(String region, String bucketName) {
+        // Set bucket name 
+        this.bucketName = bucketName;
+        
+        LOG.info("Create an instance of the AmazonS3Client class by providing your "
+                + "AWS Account or IAM user credentials (Access Key ID, Secret Access Key)");
+        regionEndpoint = region.equals(ENDPOINT_STANDARD) ? ENDPOINT_STANDARD
+                : ENDPOINT_START + region + ENDPOINT_END;
 
-        storageService.setEndpoint(endpoint);
-    }
-    
-    @Override
-    public boolean isRootFolder(String folerName) {
-        return storageService.doesBucketExist(folerName);
+        // Create an instance of the AmazonS3Client class by providing your AWS
+        // Account or IAM user credentials (Access Key ID, Secret Access Key)
+        amazonS3Client = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
+        amazonS3Client.setEndpoint(regionEndpoint);
     }
 
     @Override
-    public void createFolder(String folerName) {
-        storageService.createBucket(folerName);
+    public boolean isRootBucket() {
+        LOG.info("Checks if the specified bucket " + bucketName + " exists");
+        return amazonS3Client.doesBucketExist(bucketName);
     }
 
     @Override
-    public void deleteFolder(String folerName) {
-        storageService.deleteBucket(folerName);
+    public void createBucket() {
+        LOG.info("Creates a new Amazon S3 bucket " + bucketName + " with the specified name in the default (US) region");
+        amazonS3Client.createBucket(bucketName);
     }
 
     @Override
-    public void uploadFile(String folderName, String fileName, File file) {
-        storageService.putObject(folderName, fileName, file);
+    public void deleteBucket() {
+        LOG.info("Deletes the specified bucket " + bucketName);
+        amazonS3Client.deleteBucket(bucketName);
     }
 
     @Override
-    public void deleteFile(String folderName, String fileName) {
-        storageService.deleteObject(folderName, fileName);
+    public void uploadEntity(String keyName, File file) {
+        LOG.info("Uploads the specified file " + file.toString()
+                + " to Amazon S3 under the specified bucket " + bucketName
+                + " and key name " + keyName);
+        amazonS3Client.putObject(bucketName, keyName, file);
     }
 
     @Override
-    public void makePublic(String folderName, String fileName) {
-        storageService.setObjectAcl(folderName, fileName, CannedAccessControlList.PublicRead);
+    public void uploadEntity(String keyName, InputStream fileStream) {
+        LOG.info("Uploads the specified input stream "
+                + fileStream.toString()
+                + " and object metadata to Amazon S3 under the specified bucket "
+                + bucketName + " and key name " + keyName);
+        amazonS3Client.putObject(bucketName, keyName, fileStream, null);
     }
 
     @Override
-    public boolean isFilePublic(String folderName, String fileName) {
-        AccessControlList accessControlList = storageService.getObjectAcl(folderName, fileName);
+    public void deleteEntity(String keyName) {
+        LOG.info("Deletes the specified object " + keyName
+                + " in the specified bucket " + bucketName);
+        amazonS3Client.deleteObject(bucketName, keyName);
+    }
+
+    @Override
+    public void publicEntity(String keyName) {
+        LOG.info("Sets the CannedAccessControlList for the specified object "
+                + keyName
+                + " in Amazon S3 using one of the pre-configured CannedAccessControlLists");
+        amazonS3Client.setObjectAcl(bucketName, keyName, CannedAccessControlList.PublicRead);
+    }
+
+    @Override
+    public boolean isPublicEntity(String keyName) {
+        LOG.info("Gets the AccessControlList (ACL) for the specified object "
+                + keyName + " in the specified bucket " + bucketName);
+        AccessControlList accessControlList = amazonS3Client.getObjectAcl(bucketName, keyName);
         for (Iterator<Grant> iterator = accessControlList.getGrants().iterator(); iterator.hasNext();) {
-                Grant grant = iterator.next();
-                if(grant.getPermission().equals(Permission.Read) && grant.getGrantee().getIdentifier().equals(GROUPS_USERS))
-                  return true;
+            Grant grant = iterator.next();
+            if (grant.getPermission().equals(Permission.Read)
+                    && grant.getGrantee().getIdentifier().equals(GROUPS_USERS))
+                return true;
         }
         return false;
     }
 
     @Override
-    public boolean downloadFile(String folderName, String keyNotAvailable, File outputFile) {
+    public boolean downloadEntity(String keyNotAvailable, File destinationFile) {
+        LOG.info("Gets the object metadata for the object stored in Amazon S3 under the specified bucket "
+                + bucketName
+                + " and key "
+                + keyNotAvailable
+                + ", and saves the object contents to the specified file "
+                + destinationFile.toString());
         try {
-            storageService.getObject(new GetObjectRequest(folderName, keyNotAvailable), outputFile);
+            amazonS3Client.getObject(new GetObjectRequest(bucketName, keyNotAvailable), destinationFile);
             return true;
         } catch (AmazonServiceException ase) {
             LOG.warn(ase.getMessage(), ase);
@@ -118,21 +156,20 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     }
 
     @Override
-    public void uploadFile(String folderName, String keyName, InputStream fileStream) {
-        storageService.putObject(folderName, keyName, fileStream, null);
-    }
-
-    @Override
-    public InputStream downloadFile(String folderName, String keyName) {
-        S3Object s3Object = storageService.getObject(folderName, keyName);
+    public InputStream downloadEntity(String keyName) {
+        LOG.info("Gets the object stored in Amazon S3 under the specified bucket "
+                + bucketName + " and key " + keyName);
+        S3Object s3Object = amazonS3Client.getObject(bucketName, keyName);
         return s3Object.getObjectContent();
     }
 
     @Override
-    public String getFileUrl(String folderName, String keyName) {
-        if(isFilePublic(folderName, keyName))
-            return "http://" + endpoint + File.separator + folderName + File.separator + keyName;
-        
+    public String getResourceUrl(String keyName) {
+        LOG.info("Returns the URL to the key in the bucket given " + bucketName + ", using the client's scheme and endpoint");
+        if (isPublicEntity(keyName))
+            return "http://" + regionEndpoint + File.separatorChar + bucketName
+                    + File.separatorChar + keyName;
+
         return null;
     }
 

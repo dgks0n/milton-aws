@@ -21,25 +21,42 @@ import java.io.InputStream;
 
 public interface AmazonS3Manager {
 
-    public boolean isRootFolder(String folerName);
+    boolean isRootBucket();
     
-    public void createFolder(String folerName);
-
-    public void deleteFolder(String folerName);
-
-    public void uploadFile(String folderName, String fileName, File file);
-
-    public void deleteFile(String folderName, String fileName);
+    /**
+     * Create and name a bucket that stores data. Buckets are the fundamental
+     * container in Amazon S3 for data storage
+     */
+    void createBucket();
     
-    public void makePublic(String folderName, String fileName);
+    /**
+     * Delete a bucket that stored in Amazon S3 for the given bucket name
+     * 
+     */
+    void deleteBucket();
+    
+    /**
+     * Store an infinite amount of data in a bucket. Upload as many objects as
+     * you like into an Amazon S3 bucket. Each object can contain up to 5 TB of
+     * data. Each object is stored and retrieved using a unique
+     * developer-assigned key.
+     * 
+     * @param keyName
+     * @param file
+     */
+    void uploadEntity(String keyName, File file);
+    
+    void uploadEntity(String keyName, InputStream fileStream);
 
-    public boolean isFilePublic(String folderName, String key);
+    void deleteEntity(String keyName);
+    
+    void publicEntity(String keyName);
 
-    public boolean downloadFile(String folderName, String keyNotAvailable, File outputFile);
+    boolean isPublicEntity(String keyName);
 
-    public void uploadFile(String folderName, String keyName, InputStream fileStream);
+    boolean downloadEntity(String keyNotAvailable, File destinationFile);
 
-    public InputStream downloadFile(String folderName, String keyName);
+    InputStream downloadEntity(String keyName);
 
-    public String getFileUrl(String folderName, String keyName);
+    String getResourceUrl(String keyName);
 }

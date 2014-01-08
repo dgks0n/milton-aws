@@ -27,7 +27,10 @@ import io.milton.annotations.Name;
 import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
 import io.milton.annotations.Root;
-import io.milton.s3.db.client.DynamoDBClient;
+import io.milton.s3.AmazonS3Manager;
+import io.milton.s3.AmazonS3ManagerImpl;
+import io.milton.s3.DynamoDBManager;
+import io.milton.s3.DynamoDBManagerImpl;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
@@ -50,9 +53,10 @@ public class AmazonS3Controller {
 
     private static final Logger LOG = LoggerFactory.getLogger(AmazonS3Controller.class);
     
-    private static final String DYNAMODB_TABLE_NAME = "milton-s3-demo";
+    private static final String AMAZON_STORAGE_NAME = "milton-s3-demo";
     
-    private final DynamoDBClient dynamoDBClient;
+    private final DynamoDBManager dynamoDBManager;
+    private final AmazonS3Manager amazonS3Manager;
     
     /**
 	 * Initialize Amazon DynamoDB environment for the default table.
@@ -60,7 +64,7 @@ public class AmazonS3Controller {
 	 * @throws Exception
 	 */
     public AmazonS3Controller() throws Exception {
-        this(DYNAMODB_TABLE_NAME);
+        this(AMAZON_STORAGE_NAME);
     }
     
     /**
@@ -71,7 +75,8 @@ public class AmazonS3Controller {
      * @throws Exception
      */
     public AmazonS3Controller(String repository) throws Exception {
-    	dynamoDBClient = new DynamoDBClient(Region.getRegion(Regions.US_WEST_2), repository);
+        dynamoDBManager = new DynamoDBManagerImpl(Region.getRegion(Regions.US_WEST_2), repository);
+    	amazonS3Manager = new AmazonS3ManagerImpl(Regions.US_WEST_2.getName(), repository);
     }
     
     /**
@@ -84,18 +89,18 @@ public class AmazonS3Controller {
     @Root
     public Folder getRootFolder() throws Exception {
 		LOG.info("Getting root folder [/] and create if it is not exist in the table "
-				+ DYNAMODB_TABLE_NAME);
+				+ AMAZON_STORAGE_NAME);
     	
-        Folder rootFolder = (Folder) dynamoDBClient.findRootFolder();
+        Folder rootFolder = (Folder) dynamoDBManager.findRootFolder();
         if (rootFolder != null) {
 			LOG.info("Root folder " + rootFolder.toString()
-					+ " already created in the table " + DYNAMODB_TABLE_NAME);
+					+ " already created in the table " + AMAZON_STORAGE_NAME);
         	return rootFolder;
         }
         
         // Create Root folder if it is not exist & store in the Amazon DynamoDB
         rootFolder = new Folder("/", null);
-        dynamoDBClient.putEntity(rootFolder);
+        dynamoDBManager.putEntity(rootFolder);
         return rootFolder;
     }
     
@@ -117,7 +122,7 @@ public class AmazonS3Controller {
         	return Collections.emptyList();
         
         // Get all entities form Amazon DynamoDB
-        List<Entity> children = dynamoDBClient.findEntityByParent(parent);
+        List<Entity> children = dynamoDBManager.findEntityByParent(parent);
 		LOG.info("Getting childrens of " + parent.getName() + "; Returning "
 				+ children.size() + " children of " + parent.getName());
         return children;
@@ -129,7 +134,7 @@ public class AmazonS3Controller {
         
         // Create new folder for the given name & store in the Amazon DynamoDB
         Folder newFolder = (Folder) parent.addFolder(folderName);
-        dynamoDBClient.putEntity(newFolder);
+        dynamoDBManager.putEntity(newFolder);
         return newFolder;
     }
     
@@ -154,7 +159,7 @@ public class AmazonS3Controller {
         newFile.setSize(bytes.length);
         
         // Store in the Amazon DynamoDB
-        dynamoDBClient.putEntity(newFile);
+        dynamoDBManager.putEntity(newFile);
         return newFile;
     }
     
@@ -169,7 +174,7 @@ public class AmazonS3Controller {
         if (file.getParent() != newParent)
         	isRenaming = false;
         
-        dynamoDBClient.updateEntityByUniqueId(file, newParent, newName, isRenaming);
+        dynamoDBManager.updateEntityByUniqueId(file, newParent, newName, isRenaming);
 		LOG.info("Succesful by updating or moving file " + file.getName()
 				+ " to " + newName + " in " + newParent.getName());
     }
@@ -181,7 +186,7 @@ public class AmazonS3Controller {
 		File copyOfFile = new File(newName, newParent, Arrays.copyOf(
 				file.getBytes(), file.getBytes().length));
         newParent.getChildren().add(copyOfFile);
-        dynamoDBClient.putEntity(copyOfFile);
+        dynamoDBManager.putEntity(copyOfFile);
     }
     
     @ContentLength
