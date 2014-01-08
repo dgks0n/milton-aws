@@ -23,7 +23,7 @@
 			provide each controller in a comma seperated list -->
 		<init-param>
 			<param-name>controllerClassNames</param-name>
-			<param-value>io.milton.s3.controller.AWSStorageController</param-value>
+			<param-value>io.milton.s3.controller.AmazonS3Controller</param-value>
 		</init-param>
 
 		<!-- If using DefaultMiltonConfigurator, or a subclass, you can set any 

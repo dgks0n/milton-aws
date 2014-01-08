@@ -46,9 +46,9 @@ import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 
 @ResourceController
-public class AWSStorageController {
+public class AmazonS3Controller {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AWSStorageController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AmazonS3Controller.class);
     
     private static final String DYNAMODB_TABLE_NAME = "milton-s3-demo";
     
@@ -59,7 +59,7 @@ public class AWSStorageController {
 	 * 
 	 * @throws Exception
 	 */
-    public AWSStorageController() throws Exception {
+    public AmazonS3Controller() throws Exception {
         this(DYNAMODB_TABLE_NAME);
     }
     
@@ -70,7 +70,7 @@ public class AWSStorageController {
      * 				- the table name
      * @throws Exception
      */
-    public AWSStorageController(String repository) throws Exception {
+    public AmazonS3Controller(String repository) throws Exception {
     	dynamoDBClient = new DynamoDBClient(Region.getRegion(Regions.US_WEST_2), repository);
     }
     
@@ -100,7 +100,7 @@ public class AWSStorageController {
     }
     
     @ChildrenOf
-    public AWSStorageController getChildren(AWSStorageController rootFolder) {
+    public AmazonS3Controller getChildren(AmazonS3Controller rootFolder) {
         return this;
     }
     

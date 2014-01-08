@@ -19,7 +19,7 @@ package io.milton.s3;
 import java.io.File;
 import java.io.InputStream;
 
-public interface AWSEntityManager {
+public interface AmazonS3Manager {
 
     public boolean isRootFolder(String folerName);
     

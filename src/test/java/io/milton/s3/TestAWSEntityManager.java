@@ -14,7 +14,7 @@ import org.junit.Test;
 
 public class TestAWSEntityManager {
 
-    AWSEntityManager entityManager = null;
+    AmazonS3Manager entityManager = null;
     
     String bucketName = "milton-s3-demo-" + UUID.randomUUID();
     
@@ -22,7 +22,7 @@ public class TestAWSEntityManager {
     
     @Before
     public void setUp() {
-        entityManager = new AWSEntityManagerImpl(region);
+        entityManager = new AmazonS3ManagerImpl(region);
         assertFalse(entityManager.isRootFolder(bucketName));
         
         if(!entityManager.isRootFolder(bucketName))

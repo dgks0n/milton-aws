@@ -36,9 +36,9 @@ import com.amazonaws.services.s3.model.Grant;
 import com.amazonaws.services.s3.model.Permission;
 import com.amazonaws.services.s3.model.S3Object;
 
-public class AWSEntityManagerImpl implements AWSEntityManager {
+public class AmazonS3ManagerImpl implements AmazonS3Manager {
     
-    private static final Logger LOG = LoggerFactory.getLogger(AWSEntityManagerImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AmazonS3ManagerImpl.class);
     
     private static final String GROUPS_USERS = "http://acs.amazonaws.com/groups/global/AllUsers";
     
@@ -51,7 +51,7 @@ public class AWSEntityManagerImpl implements AWSEntityManager {
     private AmazonS3 storageService;
     private String endpoint;
     
-    public AWSEntityManagerImpl(String region) {
+    public AmazonS3ManagerImpl(String region) {
         credentialsProvider = new ClasspathPropertiesFileCredentialsProvider();
         storageService = new AmazonS3Client(credentialsProvider);
         if (!region.equals(AWS_END_POINT_STANDARD)) {
