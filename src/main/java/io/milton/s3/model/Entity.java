@@ -19,7 +19,7 @@ package io.milton.s3.model;
 import java.util.Date;
 import java.util.UUID;
 
-public abstract class Entity implements IEntity {
+public class Entity {
 
 	/**
 	 * UUID is unique ID
@@ -40,29 +40,36 @@ public abstract class Entity implements IEntity {
      * Modified date of entity
      */
     private Date modifiedDate;
+    
+    /**
+	 * Check entity is folder or not. Default is a Folder
+	 */
+    private boolean isDirectory;
 
     /**
      * Parent folder entity
      */
     private Folder parent;
 
-    public Entity(String name, IFolder parent) {
+    public Entity(String name, Folder parent) {
     	this.id = UUID.randomUUID();
     	this.name = name;
-        this.parent = (Folder) parent;
+        this.parent = parent;
         this.createdDate = new Date();
         this.modifiedDate = new Date();
+        this.isDirectory = true;
     }
     
-    public Entity(UUID id, String name, Date createdDate, Date modifiedDate, IFolder parent) {
+	public Entity(UUID id, String name, Date createdDate, Date modifiedDate,
+			Folder parent) {
 		this.id = id;
 		this.name = name;
-		this.parent = (Folder) parent;
+		this.parent = parent;
 		this.createdDate = createdDate;
 		this.modifiedDate = modifiedDate;
+		this.isDirectory = true;
 	}
 
-	@Override
     public UUID getId() {
         return id;
     }
@@ -71,12 +78,10 @@ public abstract class Entity implements IEntity {
 		this.id = id;
 	}
 
-	@Override
     public String getName() {
         return name;
     }
 
-    @Override
     public void setName(final String name) {
         this.name = name;
         this.modifiedDate = new Date();
@@ -98,41 +103,27 @@ public abstract class Entity implements IEntity {
         this.modifiedDate = modifiedDate;
     }
 
-    @Override
-    public IFolder getParent() {
+	public boolean isDirectory() {
+		return isDirectory;
+	}
+
+	public void setDirectory(boolean isDirectory) {
+		this.isDirectory = isDirectory;
+	}
+
+	public Folder getParent() {
         return parent;
     }
 
-    @Override
-    public void setParent(final IFolder parent) {
+    public void setParent(final Folder parent) {
         this.parent = (Folder) parent;
     }
 
-    /**
-     * Move the source object to the given parent and with the given name
-     * 
-     * @param target
-     *            - the target folder
-     */
-    public void moveTo(final IFolder target) {
-        this.modifiedDate = new Date();
-        
-        // Remove the source object
-        parent.getChildren().remove(this);
-        target.getChildren().add(this);
-        this.parent = (Folder) target;
-    }
-
-    /**
-     * Remove current entity
-     */
-    public void delete() {
-    	if (this.getParent() == null)
-    		throw new RuntimeException("Attempt to delete root folder");
-    		
-    	if (parent.getChildren() == null)
-    		throw new NullPointerException("Children of root folder is null");
-    	
-        parent.getChildren().remove(this);
-    }
+	@Override
+	public String toString() {
+		return "Entity [id=" + id + ", name=" + name + ", createdDate="
+				+ createdDate + ", modifiedDate=" + modifiedDate
+				+ ", isDirectory=" + isDirectory + ", parent=" + parent + "]";
+	}
+    
 }

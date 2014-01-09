@@ -16,93 +16,29 @@
  */
 package io.milton.s3.model;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
 import java.util.UUID;
 
-public class Folder extends Entity implements IFolder {
+public class Folder extends Entity {
     
-	/**
-	 * A list of children's folder
-	 */
-    private List<Entity> childrens = new ArrayList<Entity>();
-    
-    public Folder(String folderName, IFolder parent) {
+    public Folder(String folderName, Folder parent) {
         super(folderName, parent);
     }
     
-    public Folder(UUID id, String name, Date createdDate, Date modifiedDate, IFolder parent) {
+	public Folder(UUID id, String name, Date createdDate, Date modifiedDate,
+			Folder parent) {
     	super(id, name, createdDate, modifiedDate, parent);
 	}
 
-	@Override
-    public synchronized IFile addFile(final String fileName) {
+    public File addFile(final String fileName) {
         File file = new File(fileName, this);
-        childrens.add(file);
+        file.setDirectory(false);
         return file;
     }
     
-    @Override
-    public synchronized IFolder addFolder(final String folderName) {
+    public Folder addFolder(final String folderName) {
         Folder folder = new Folder(folderName, this);
-        childrens.add(folder);
         return folder;
     }
-
-    /**
-     * Remove entity for the given name in a folder
-     * 
-     * @param the given name of entity
-     */
-    public void remove(final String entityName) {
-        Iterator<Entity> iterator = childrens.iterator();
-        while(iterator.hasNext()) {
-            if(iterator.next().getName().equals(entityName)) {
-                iterator.remove();
-            }
-        }
-    }
     
-    /**
-     * Get all entities have existing in a folder
-     * 
-     * @return a list of entities
-     */
-    @Override
-    public synchronized List<IEntity> getChildren() {
-    	List<IEntity> children = new ArrayList<IEntity>();
-    	children.addAll(childrens);
-        return children;
-    }
-    
-    /**
-     * Get a entity for the given name in a folder
-     * 
-     * @param name
-     * @return
-     */
-    @Override
-    public IEntity getChildren(final String entityName) {
-        for(Entity entity : childrens) {
-            if(entity.getName().equals(entityName))
-                return entity;
-        }
-        return null;
-    }
-    
-    @Override
-    public void moveTo(final IFolder target) {
-        super.moveTo(target);
-    }
-    
-    @Override
-    public IEntity copyTo(final IFolder target, final String targetName) {
-    	Folder folder = (Folder) target.addFolder(targetName);
-        for(Entity entity : childrens) {
-            entity.copyTo(folder, entity.getName());
-        }
-        return folder;
-    }
 }

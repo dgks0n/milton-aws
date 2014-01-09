@@ -27,26 +27,20 @@ import io.milton.annotations.Name;
 import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
 import io.milton.annotations.Root;
-import io.milton.s3.AmazonS3Manager;
-import io.milton.s3.AmazonS3ManagerImpl;
-import io.milton.s3.DynamoDBManager;
-import io.milton.s3.DynamoDBManagerImpl;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
+import io.milton.s3.service.AmazonStorageService;
+import io.milton.s3.service.AmazonStorageServiceImpl;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.Regions;
 
 @ResourceController
 public class AmazonS3Controller {
@@ -55,8 +49,7 @@ public class AmazonS3Controller {
     
     private static final String AMAZON_STORAGE_NAME = "milton-s3-demo";
     
-    private final DynamoDBManager dynamoDBManager;
-    private final AmazonS3Manager amazonS3Manager;
+    private final AmazonStorageService amazonStorageService;
     
     /**
 	 * Initialize Amazon DynamoDB environment for the default table.
@@ -68,15 +61,15 @@ public class AmazonS3Controller {
     }
     
     /**
-     * Initialize Amazon DynamoDB environment for the given repository
-     * 
-     * @param repository
-     * 				- the table name
-     * @throws Exception
-     */
+	 * Initialize Amazon Simple Storage Service environment for the given
+	 * repository
+	 * 
+	 * @param repository
+	 *            - the table name
+	 * @throws Exception
+	 */
     public AmazonS3Controller(String repository) throws Exception {
-        dynamoDBManager = new DynamoDBManagerImpl(Region.getRegion(Regions.US_WEST_2), repository);
-    	amazonS3Manager = new AmazonS3ManagerImpl(Regions.US_WEST_2.getName(), repository);
+    	amazonStorageService = new AmazonStorageServiceImpl(repository);
     }
     
     /**
@@ -90,18 +83,7 @@ public class AmazonS3Controller {
     public Folder getRootFolder() throws Exception {
 		LOG.info("Getting root folder [/] and create if it is not exist in the table "
 				+ AMAZON_STORAGE_NAME);
-    	
-        Folder rootFolder = (Folder) dynamoDBManager.findRootFolder();
-        if (rootFolder != null) {
-			LOG.info("Root folder " + rootFolder.toString()
-					+ " already created in the table " + AMAZON_STORAGE_NAME);
-        	return rootFolder;
-        }
-        
-        // Create Root folder if it is not exist & store in the Amazon DynamoDB
-        rootFolder = new Folder("/", null);
-        dynamoDBManager.putEntity(rootFolder);
-        return rootFolder;
+        return amazonStorageService.findRootFolder();
     }
     
     @ChildrenOf
@@ -118,11 +100,12 @@ public class AmazonS3Controller {
      */
     @ChildrenOf
     public List<Entity> getChildren(Folder parent) {
-        if (parent == null)
+        if (parent == null) {
         	return Collections.emptyList();
+        }
         
         // Get all entities form Amazon DynamoDB
-        List<Entity> children = dynamoDBManager.findEntityByParent(parent);
+        List<Entity> children = amazonStorageService.findEntityByParent(parent);
 		LOG.info("Getting childrens of " + parent.getName() + "; Returning "
 				+ children.size() + " children of " + parent.getName());
         return children;
@@ -134,7 +117,9 @@ public class AmazonS3Controller {
         
         // Create new folder for the given name & store in the Amazon DynamoDB
         Folder newFolder = (Folder) parent.addFolder(folderName);
-        dynamoDBManager.putEntity(newFolder);
+        if (amazonStorageService.putEntity(newFolder, null)) {
+        	LOG.info("Create Successful folder " + folderName + " in " + parent.getName());
+        }
         return newFolder;
     }
     
@@ -149,17 +134,15 @@ public class AmazonS3Controller {
     }
     
     @PutChild
-    public File createFile(Folder parent, String newName, byte[] bytes) {
-        LOG.info("Creating file with Name: " + newName + "; Size of upload: " + bytes.length
-                + " in the folder " + parent.getName());
+    public File createFile(Folder parent, String newName, InputStream inputStream) {
+		LOG.info("Creating file " + inputStream.toString() + " with name "
+				+ newName + " in the folder " + parent.getName());
         
-        // Create a file and store into Amazon DynamoDB
+        // Create a file and store into Amazon Simple Storage Service
         File newFile = (File) parent.addFile(newName);
-        newFile.setBytes(bytes);
-        newFile.setSize(bytes.length);
-        
-        // Store in the Amazon DynamoDB
-        dynamoDBManager.putEntity(newFile);
+        if (amazonStorageService.putEntity(newFile, inputStream)) {
+        	LOG.warn("Create Successful file " + newName + " under folder " + parent);
+        }
         return newFile;
     }
     
@@ -174,19 +157,19 @@ public class AmazonS3Controller {
         if (file.getParent() != newParent)
         	isRenaming = false;
         
-        dynamoDBManager.updateEntityByUniqueId(file, newParent, newName, isRenaming);
-		LOG.info("Succesful by updating or moving file " + file.getName()
-				+ " to " + newName + " in " + newParent.getName());
+//        dynamoDBManager.updateEntityByUniqueId(file, newParent, newName, isRenaming);
+//		LOG.info("Succesful by updating or moving file " + file.getName()
+//				+ " to " + newName + " in " + newParent.getName());
     }
     
     @Copy
     public void copy(File file, Folder newParent, String newName) {
 		LOG.info("Copying file " + file.getName() + " to " + newName + " in "
 				+ newParent.getName());
-		File copyOfFile = new File(newName, newParent, Arrays.copyOf(
-				file.getBytes(), file.getBytes().length));
-        newParent.getChildren().add(copyOfFile);
-        dynamoDBManager.putEntity(copyOfFile);
+//		File copyOfFile = new File(newName, newParent, Arrays.copyOf(
+//				file.getBytes(), file.getBytes().length));
+//        newParent.getChildren().add(copyOfFile);
+//        dynamoDBManager.putEntity(copyOfFile);
     }
     
     @ContentLength
@@ -199,17 +182,11 @@ public class AmazonS3Controller {
         return 0L;
     }
     
-    @ContentLength
-    public Long fileContentLength(File file) {
-    	Long fileSize = new Long(file.getBytes().length);
-    	
-		LOG.info("Getting size of " + file.getName() + "; Returning "
-				+ fileSize + " bytes");
-        return fileSize;
-    }
-    
     @Get
     public InputStream getFile(File file) throws IOException {
-    	return file.getInputStream();
+		String keyName = file.getParent().getId().toString()
+				+ java.io.File.separatorChar + file.getId().toString();
+		LOG.info("Downloading file " + file.toString() + " under folder " + file.getParent().getName());
+    	return amazonStorageService.downloadEntityByUniqueId(keyName);
     }
 }

@@ -19,7 +19,6 @@ package io.milton.s3.db.mapper;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IFolder;
 import io.milton.s3.util.AttributeKey;
 import io.milton.s3.util.DateUtils;
 
@@ -34,7 +33,8 @@ import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 
 public class DynamoDBEntityMapper {
 
-	public static List<Entity> convertItemsToEntities(IFolder parent, List<Map<String, AttributeValue>> items) {
+	public static List<Entity> convertItemsToEntities(Folder parent, List<Map<String, 
+			AttributeValue>> items) {
         if (items.isEmpty())
         	Collections.emptyList();
         
@@ -47,19 +47,20 @@ public class DynamoDBEntityMapper {
         return childrens;
     }
     
-	public static Entity convertItemToEntity(IFolder parent, Map<String, AttributeValue> item) {
+	public static Entity convertItemToEntity(Folder parent, Map<String, AttributeValue> item) {
     	
-    	Date createdDate = DateUtils.getDateFromString(item.get(AttributeKey.CREATED_DATE).getS());
-        Date modifiedDate = DateUtils.getDateFromString(item.get(AttributeKey.MODIFIED_DATE).getS());
+    	Date createdDate = DateUtils.dateFromString(item.get(AttributeKey.CREATED_DATE).getS());
+        Date modifiedDate = DateUtils.dateFromString(item.get(AttributeKey.MODIFIED_DATE).getS());
         
         String uniqueId = item.get(AttributeKey.UUID).getS();
         String entityName = item.get(AttributeKey.ENTITY_NAME).getS();
-        String blobId = item.get(AttributeKey.BLOB_ID).getS();
-        if (AttributeKey.NOT_EXIST.equals(blobId)) {
-            Folder folder = new Folder(UUID.fromString(uniqueId), entityName, createdDate, modifiedDate, parent);
+        if (Integer.valueOf(item.get(AttributeKey.IS_DIRECTORY).getN()) == 1) {
+			Folder folder = new Folder(UUID.fromString(uniqueId), entityName,
+					createdDate, modifiedDate, parent);
             return folder;
         } else {
-            File file = new File(UUID.fromString(uniqueId), entityName, createdDate, modifiedDate, parent, blobId.getBytes());
+			File file = new File(UUID.fromString(uniqueId), entityName,
+					createdDate, modifiedDate, parent);
             file.setContentType(item.get(AttributeKey.CONTENT_TYPE).getS());
             file.setSize(new Long(item.get(AttributeKey.FILE_SIZE).getN()));
             return file;

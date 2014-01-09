@@ -17,8 +17,7 @@
 package io.milton.s3.db;
 
 import io.milton.s3.model.Entity;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFolder;
+import io.milton.s3.model.Folder;
 
 import java.util.HashMap;
 import java.util.List;
@@ -46,7 +45,7 @@ public interface DynamoDBService {
     
     boolean isTableExist();
     
-    Map<String, AttributeValue> newItem(IEntity entity);
+    Map<String, AttributeValue> newItem(Entity entity);
     
     PutItemResult putItem(Map<String, AttributeValue> item);
     
@@ -59,7 +58,7 @@ public interface DynamoDBService {
     
     DeleteItemResult deleteItem(HashMap<String, AttributeValue> primaryKey);
     
-    List<Entity> getChildren(IFolder parent, Map<String, Condition> conditions);
+    List<Entity> getChildren(Folder parent, Map<String, Condition> conditions);
     
-    IFolder getRootFolder();
+    Folder getRootFolder();
 }

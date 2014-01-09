@@ -16,23 +16,29 @@
  */
 package io.milton.s3.service;
 
+import io.milton.s3.model.Entity;
+import io.milton.s3.model.File;
+import io.milton.s3.model.Folder;
+
+import java.io.InputStream;
 import java.util.List;
 
-import io.milton.s3.model.Entity;
-import io.milton.s3.model.Folder;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFile;
-import io.milton.s3.model.IFolder;
-
 public interface AmazonStorageService {
-
-    IFolder findRootFolder();
+	
+    Folder findRootFolder();
     
-    IEntity findEntityByUniqueId(IEntity entity);
+    Entity findEntityByUniqueId(Entity entity);
     
     List<Entity> findEntityByParent(Folder parent);
     
-    boolean updateEntityByUniqueId(IFile file, IFolder newParent, String newEntityName, boolean isRenaming);
+    boolean putEntity(Entity entity, InputStream inputStream);
+    
+    boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
+    		boolean isRenaming);
     
     boolean deleteEntityByUniqueId(String uniqueId);
+    
+    boolean downloadEntityByUniqueId(String keyNotAvailable, java.io.File destinationFile);
+    
+    InputStream downloadEntityByUniqueId(String keyName);
 }

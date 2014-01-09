@@ -18,8 +18,11 @@ package io.milton.s3;
 
 import java.io.File;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,8 +35,11 @@ import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.Grant;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.Permission;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 public class AmazonS3ManagerImpl implements AmazonS3Manager {
 
@@ -53,7 +59,7 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     /**
      * You can choose the geographical region where Amazon S3 will store the
      * buckets you create. You might choose a region to optimize latency,
-     * minimize costs, or address regulatory requirements.
+     * minimize costs, or address regulator requirements.
      * 
      * @param region
      */
@@ -70,6 +76,13 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
         // Account or IAM user credentials (Access Key ID, Secret Access Key)
         amazonS3Client = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
         amazonS3Client.setEndpoint(regionEndpoint);
+        
+		// Checks if the specified bucket exists or not and
+		// if doesn't exist then creates a new Amazon S3 bucket
+		// with the specified name in the default (US) region
+        if (!isRootBucket()) {
+        	createBucket();
+        }
     }
 
     @Override
@@ -172,5 +185,50 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
 
         return null;
     }
+    
+    @Override
+	public S3Object findEntityByUniqueKey(String keyName) {
+    	if (StringUtils.isEmpty(keyName))
+    		return null;
+    	
+    	LOG.info("Gets the object stored in Amazon S3 under the specified bucket "
+                + bucketName + " and key " + keyName);
+        return amazonS3Client.getObject(bucketName, keyName);
+	}
 
+	@Override
+	public List<S3ObjectSummary> findEntityByPrefixKey(String prefixKey) {
+		LOG.info("Returns a list of summary information about the objects in the specified bucket "
+				+ bucketName + " for the specified " + prefixKey);
+		
+		List<S3ObjectSummary> objectSummaries = new ArrayList<S3ObjectSummary>();
+		ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
+			.withBucketName(bucketName)
+			.withPrefix(prefixKey);
+		ObjectListing objectListing;
+		
+		try {
+			do {
+				objectListing = amazonS3Client.listObjects(listObjectsRequest);
+				for (final S3ObjectSummary objectSummary: objectListing.getObjectSummaries()) {
+					objectSummaries.add(objectSummary);
+				}
+				listObjectsRequest.setMarker(objectListing.getNextMarker());
+			} while (objectListing.isTruncated());
+		} catch (AmazonServiceException ase) {
+			LOG.error("Caught an AmazonServiceException, "
+					+ "which means your request made it "
+					+ "to Amazon S3, but was rejected with an error response "
+					+ "for some reason.", ase);
+		} catch (AmazonClientException ace) {
+			LOG.error("Caught an AmazonClientException, "
+					+ "which means the client encountered "
+					+ "an internal error while trying to communicate"
+					+ " with S3, "
+					+ "such as not being able to access the network.", ace);
+		}
+		
+		return objectSummaries;
+	}
+	
 }

@@ -16,10 +16,6 @@
  */
 package io.milton.s3.model;
 
-import io.milton.common.BufferingOutputStream;
-
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URLConnection;
 import java.util.Date;
 import java.util.UUID;
@@ -28,56 +24,25 @@ import javax.activation.MimetypesFileTypeMap;
 
 import org.apache.commons.lang.StringUtils;
 
-public class File extends Entity implements IFile {
+public class File extends Entity {
     
-    private byte[] bytes;
-    private String contentType;
-    
-    /**
-     * Size of file
-     */
     private long size;
-
-    public File(String fileName, IFolder parent) {
-        super(fileName, parent);
-        
-        this.contentType = getContentTypeFromName();
-    }
     
-    public File(String fileName, IFolder parent, byte[] bytes) {
+    private String contentType;
+
+    public File(String fileName, Folder parent) {
         super(fileName, parent);
-        
-        // Size of file
-        this.bytes = bytes;
+        this.setDirectory(false);
         this.contentType = getContentTypeFromName();
     }
 
-    public File(UUID id, String name, Date createdDate, Date modifiedDate, IFolder parent, byte[] bytes) {
+	public File(UUID id, String name, Date createdDate, Date modifiedDate,
+			Folder parent) {
 		super(id, name, createdDate, modifiedDate, parent);
-		
-		this.bytes = bytes;
+		this.setDirectory(false);
 		this.contentType = getContentTypeFromName();
 	}
 
-	@Override
-    public byte[] getBytes() {
-        return bytes;
-    }
-
-    public void setBytes(byte[] bytes) {
-        this.bytes = bytes;
-    }
-
-    @Override
-    public String getContentType() {
-        return contentType;
-    }
-
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
-    }
-
-    @Override
     public long getSize() {
         return size;
     }
@@ -85,14 +50,13 @@ public class File extends Entity implements IFile {
     public void setSize(long size) {
         this.size = size;
     }
+    
+    public String getContentType() {
+        return contentType;
+    }
 
-    @Override
-    public Entity copyTo(final IFolder target, final String targetName) {
-        File file = (File) target.addFile(targetName);
-        file.bytes = bytes;
-        file.contentType = contentType;
-        file.size = size;
-        return file;
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
     }
     
     /**
@@ -102,16 +66,20 @@ public class File extends Entity implements IFile {
      */
     protected String getContentTypeFromName() {
     	String contentType = URLConnection.guessContentTypeFromName(this.getName());
-        if (StringUtils.isEmpty(contentType))
-        	contentType = MimetypesFileTypeMap.getDefaultFileTypeMap().getContentType(this.getName());
+        if (StringUtils.isEmpty(contentType)) {
+			contentType = MimetypesFileTypeMap.getDefaultFileTypeMap()
+					.getContentType(this.getName());
+        }
         return contentType;
     }
-
+    
     @Override
-    public InputStream getInputStream() throws IOException {
-    	BufferingOutputStream bufferOutput = new BufferingOutputStream(10);
-    	bufferOutput.write(getBytes());
-    	bufferOutput.close();
-    	return bufferOutput.getInputStream();
-    }
+	public String toString() {
+		return "Entity [id=" + getId() + ", name=" + getName()
+				+ ", createdDate=" + getCreatedDate() + ", modifiedDate="
+				+ getModifiedDate() + ", isDirectory=" + isDirectory()
+				+ ", parent=" + getParent() + ", size=" + getSize()
+				+ ", contentType=" + getContentType() + "]";
+	}
+    
 }

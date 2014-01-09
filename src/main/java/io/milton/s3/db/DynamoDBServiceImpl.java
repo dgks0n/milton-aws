@@ -20,10 +20,8 @@ import io.milton.s3.db.mapper.DynamoDBEntityMapper;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFolder;
 import io.milton.s3.util.AttributeKey;
-import io.milton.s3.util.Crypt;
+import io.milton.s3.util.DateUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -139,8 +137,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         long endTime = startTime + (10 * 60 * 1000);
         while (System.currentTimeMillis() < endTime) {
             DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest)
-            		.getTable();
+            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
             
             // Display current status of table
             String tableStatus = tableDescription.getTableStatus();
@@ -219,35 +216,34 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     }
     
     @Override
-    public Map<String, AttributeValue> newItem(IEntity entity) {
+    public Map<String, AttributeValue> newItem(Entity entity) {
         Map<String, AttributeValue> newItem = new HashMap<String, AttributeValue>();
         newItem.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId().toString()));
         newItem.put(AttributeKey.ENTITY_NAME, new AttributeValue().withS(entity.getName()));
         
         // Get folder parent UUID
         String parentUniqueId = AttributeKey.NOT_EXIST;
-        Folder folder = (Folder) entity.getParent();
-        if (folder != null)
+        Folder folder = entity.getParent();
+        if (folder != null) {
         	parentUniqueId = folder.getId().toString();
-        
-        newItem.put(AttributeKey.PARENT_UUID, new AttributeValue().withS(parentUniqueId));
+        }
         
         int fileSize = 0;
-        String blobId = AttributeKey.NOT_EXIST;
         String contentType = AttributeKey.NOT_EXIST;
         if (entity instanceof File) {
-            blobId = Crypt.toHexFromByte(((File) entity).getBytes());
             fileSize = (int) ((File) entity).getSize();
             contentType = ((File) entity).getContentType();
         }
         
-        newItem.put(AttributeKey.BLOB_ID, new AttributeValue().withS(blobId));
+        newItem.put(AttributeKey.PARENT_UUID, new AttributeValue().withS(parentUniqueId));
+		newItem.put(AttributeKey.IS_DIRECTORY, new AttributeValue()
+				.withN(Integer.toString(entity.isDirectory() ? 1 : 0)));
         newItem.put(AttributeKey.FILE_SIZE, new AttributeValue().withN(Integer.toString(fileSize)));
         newItem.put(AttributeKey.CONTENT_TYPE, new AttributeValue().withS(contentType));
-        newItem.put(AttributeKey.CREATED_DATE, new AttributeValue().withS(((Entity) entity)
-        		.getCreatedDate().toString()));
-        newItem.put(AttributeKey.MODIFIED_DATE, new AttributeValue().withS(((Entity) entity)
-        		.getModifiedDate().toString()));
+		newItem.put(AttributeKey.CREATED_DATE, new AttributeValue()
+				.withS(DateUtils.dateToString(entity.getCreatedDate())));
+		newItem.put(AttributeKey.MODIFIED_DATE, new AttributeValue()
+				.withS(DateUtils.dateToString(entity.getModifiedDate())));
         return newItem;
     }
 
@@ -339,13 +335,13 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     }
 
     @Override
-    public List<Entity> getChildren(IFolder parent, Map<String, Condition> conditions) {
+    public List<Entity> getChildren(Folder parent, Map<String, Condition> conditions) {
     	List<Map<String, AttributeValue>> items = getItem(conditions);
         return DynamoDBEntityMapper.convertItemsToEntities(parent, items);
     }
     
     @Override
-	public IFolder getRootFolder() {
+	public Folder getRootFolder() {
         Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
                 .withAttributeValueList(new AttributeValue().withS(AttributeKey.NOT_EXIST));
             
@@ -356,7 +352,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         if (entities != null && !entities.isEmpty()) {
         	Entity entity = entities.get(0);
     		if (entity instanceof Folder)
-    			return (IFolder) entity;
+    			return (Folder) entity;
         }
         
         LOG.warn("Could not find item for the given " + conditions.toString() + " from " + repository);

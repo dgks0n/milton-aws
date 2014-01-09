@@ -18,6 +18,10 @@ package io.milton.s3;
 
 import java.io.File;
 import java.io.InputStream;
+import java.util.List;
+
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 public interface AmazonS3Manager {
 
@@ -59,4 +63,14 @@ public interface AmazonS3Manager {
     InputStream downloadEntity(String keyName);
 
     String getResourceUrl(String keyName);
+    
+    S3Object findEntityByUniqueKey(String keyName);
+    
+    /**
+	 * This method to list object keys in a bucket for the given prefix
+	 * 
+	 * @param prefixKey
+	 * @return
+	 */
+    List<S3ObjectSummary> findEntityByPrefixKey(String prefixKey);
 }

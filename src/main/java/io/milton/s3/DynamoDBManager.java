@@ -16,25 +16,26 @@
  */
 package io.milton.s3;
 
-import java.util.List;
-
 import io.milton.s3.model.Entity;
+import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFile;
-import io.milton.s3.model.IFolder;
+
+import java.util.List;
 
 public interface DynamoDBManager {
 
-    boolean putEntity(IEntity entity);
+    boolean putEntity(Entity entity);
     
-    IFolder findRootFolder();
+    Folder findRootFolder();
     
-    IEntity findEntityByUniqueId(IEntity entity);
+    Entity findEntityByUniqueId(Entity entity);
+    
+    Entity findEntityByUniqueId(String uniqueId, Folder parent);
     
     List<Entity> findEntityByParent(Folder parent);
     
-    boolean updateEntityByUniqueId(IFile file, IFolder newParent, String newEntityName, boolean isRenaming);
+    boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
+    		boolean isRenaming);
     
     boolean deleteEntityByUniqueId(String uniqueId);
 }

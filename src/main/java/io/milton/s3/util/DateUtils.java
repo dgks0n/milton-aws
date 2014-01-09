@@ -25,14 +25,27 @@ public class DateUtils {
 
 	public static final DateFormat dateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss Z yyyy");
 	
-	public static Date getDateFromString(String dateString) {
+	/**
+	 * New date for the given string based on format date
+	 * 
+	 * @param dateString
+	 * @return
+	 */
+	public static Date dateFromString(String dateString) {
     	Date date = null;
     	try {
     		date = dateFormat.parse(dateString);
-		} catch (ParseException pe) {
-			// TODO: Edit here
-		}
+		} catch (ParseException pe) {}
     	return date;
     }
 	
+	/**
+	 * Convert a date to string for the give date
+	 * 
+	 * @param date
+	 * @return
+	 */
+	public static String dateToString(Date date) {
+		return dateFormat.format(date);
+	}
 }

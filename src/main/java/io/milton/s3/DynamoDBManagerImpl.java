@@ -16,20 +16,18 @@
  */
 package io.milton.s3;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import io.milton.s3.db.DynamoDBService;
 import io.milton.s3.db.DynamoDBServiceImpl;
 import io.milton.s3.db.mapper.DynamoDBEntityMapper;
 import io.milton.s3.model.Entity;
+import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFile;
-import io.milton.s3.model.IFolder;
 import io.milton.s3.util.AttributeKey;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -91,7 +89,7 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 * @return
 	 */
 	@Override
-	public boolean putEntity(IEntity entity) {
+	public boolean putEntity(Entity entity) {
 		boolean isSuccess = false;
 		if (entity == null)
 			return isSuccess;
@@ -109,7 +107,7 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 * @return
 	 */
 	@Override
-	public IFolder findRootFolder() {
+	public Folder findRootFolder() {
 		return dynamoDBService.getRootFolder();
 	}
 	
@@ -118,16 +116,38 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 * unique UUID
 	 * 
 	 * @param entity
-	 * @return
+	 * @return Entity
 	 */
 	@Override
-	public IEntity findEntityByUniqueId(IEntity entity) {
+	public Entity findEntityByUniqueId(Entity entity) {
 		if (entity == null)
 			return null;
 		
 		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue> ();
 		primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId().toString()));
 		Entity dynamoEntity = DynamoDBEntityMapper.convertItemToEntity(entity.getParent(), 
+				dynamoDBService.getItem(primaryKey));
+		return dynamoEntity;
+	}
+	
+	
+	/**
+	 * The findEntityByUniqueId method retrieves an root item for the given
+	 * unique UUID & parent
+	 * 
+	 * @param uniqueId
+	 * @parem parent
+	 * 
+	 * @return Entity
+	 */
+	@Override
+	public Entity findEntityByUniqueId(String uniqueId, Folder parent) {
+		if (StringUtils.isEmpty(uniqueId))
+			return null;
+		
+		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue> ();
+		primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(uniqueId));
+		Entity dynamoEntity = DynamoDBEntityMapper.convertItemToEntity(parent, 
 				dynamoDBService.getItem(primaryKey));
 		return dynamoEntity;
 	}
@@ -166,7 +186,8 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 * @return TRUE/FALSE
 	 */
 	@Override
-	public boolean updateEntityByUniqueId(IFile file, IFolder newParent, String newEntityName, boolean isRenaming) {
+	public boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
+			boolean isRenaming) {
 		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue>();
         primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(file.getId().toString()));
         

@@ -23,7 +23,7 @@ public class AttributeKey {
 	public static final String UUID = "UniqueId";
 	public static final String ENTITY_NAME = "EntityName";
 	public static final String PARENT_UUID = "ParentId";
-	public static final String BLOB_ID = "BlobId";
+	public static final String IS_DIRECTORY = "IsDirectory";
 	public static final String FILE_SIZE = "FileSize";
 	public static final String CONTENT_TYPE = "ContentType";
 	public static final String CREATED_DATE = "CreatedDate";

@@ -21,90 +21,140 @@ import io.milton.s3.AmazonS3ManagerImpl;
 import io.milton.s3.DynamoDBManager;
 import io.milton.s3.DynamoDBManagerImpl;
 import io.milton.s3.model.Entity;
+import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
-import io.milton.s3.model.IEntity;
-import io.milton.s3.model.IFile;
-import io.milton.s3.model.IFolder;
-import io.milton.s3.util.FileUtils;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.lang.StringUtils;
 
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 public class AmazonStorageServiceImpl implements AmazonStorageService {
-
-    private static final Logger LOG = LoggerFactory.getLogger(AmazonStorageServiceImpl.class);
-    
+	
+    /**
+     * Amazon DynamoDB Storage
+     */
     private final DynamoDBManager dynamoDBManager;
+    
+    /**
+     * Amazon Simple Storage Service (S3)
+     */
     private final AmazonS3Manager amazonS3Manager;
     
     public AmazonStorageServiceImpl(String repository) {
-        dynamoDBManager = new DynamoDBManagerImpl(Region.getRegion(Regions.US_WEST_2), repository);
+        dynamoDBManager = new DynamoDBManagerImpl(Region.getRegion(Regions.US_WEST_2), 
+        		repository);
         amazonS3Manager = new AmazonS3ManagerImpl(Regions.US_WEST_2.getName(), repository);
     }
     
-    /* (non-Javadoc)
-     * @see io.milton.s3.service.AmazonStorageService#findRootFolder()
-     */
     @Override
-    public IFolder findRootFolder() {
+    public Folder findRootFolder() {
         Folder rootFolder = (Folder) dynamoDBManager.findRootFolder();
         if (rootFolder == null) {
             rootFolder = new Folder("/", null);
             
-            // Tries to create new file in the system for the given UUID
-            String fileName = rootFolder.getId().toString();
-            amazonS3Manager.uploadEntity(fileName, FileUtils.createNewFile(fileName));
+            // Tries to create new folder for the given UUID
             dynamoDBManager.putEntity(rootFolder);
             return rootFolder;
         }
-        
-        // TODO: Is it necessary to find entity from Amazon S3 ?
-        // 
         return rootFolder;
     }
 
-    /* (non-Javadoc)
-     * @see io.milton.s3.service.AmazonStorageService#findEntityByUniqueId(io.milton.s3.model.IEntity)
-     */
     @Override
-    public IEntity findEntityByUniqueId(IEntity entity) {
-        // TODO Auto-generated method stub
-        return null;
+    public Entity findEntityByUniqueId(Entity entity) {
+        if (entity == null)
+        	return null;
+        
+        S3Object s3Object = amazonS3Manager.findEntityByUniqueKey(entity.getId().toString());
+        if (s3Object == null)
+        	return null;
+        return dynamoDBManager.findEntityByUniqueId(entity);
     }
 
-    /* (non-Javadoc)
-     * @see io.milton.s3.service.AmazonStorageService#findEntityByParent(io.milton.s3.model.Folder)
-     */
     @Override
     public List<Entity> findEntityByParent(Folder parent) {
-        // TODO Auto-generated method stub
-        return null;
+    	if (parent == null) {
+    		return Collections.emptyList();
+    	}
+    	
+    	// Get all files of current folder have already existing in Amazon S3
+    	List<S3ObjectSummary> objectSummaries = amazonS3Manager.findEntityByPrefixKey(
+    			parent.getId().toString());
+    	List<Entity> files = new ArrayList<Entity>();
+    	for (S3ObjectSummary objectSummary : objectSummaries) {
+    		Entity entity = dynamoDBManager.findEntityByUniqueId(objectSummary.getKey(), parent);
+    		if (entity != null) {
+    			files.add(entity);
+    		}
+    	}
+    	
+    	List<Entity> children = new ArrayList<Entity>();
+    	if (files != null && !files.isEmpty()) {
+    		children.addAll(files);
+    	}
+    	
+    	// Get all folders of current folder have already existing in Amazon DynamoDB
+    	List<Entity> folders = dynamoDBManager.findEntityByParent(parent);
+    	if (folders != null && !folders.isEmpty()) {
+    		children.addAll(folders);
+    	}
+        return children;
     }
-
-    /* (non-Javadoc)
-     * @see io.milton.s3.service.AmazonStorageService#updateEntityByUniqueId(io.milton.s3.model.IFile, io.milton.s3.model.IFolder, java.lang.String, boolean)
-     */
+    
     @Override
-    public boolean updateEntityByUniqueId(IFile file, IFolder newParent,
-            String newEntityName, boolean isRenaming) {
-        // TODO Auto-generated method stub
+	public boolean putEntity(Entity entity, InputStream inputStream) {
+    	if (entity == null)
+    		return false;
+    	
+    	// Only store file in Amazon S3
+    	if (entity instanceof File) {
+    		String keyName = null;
+    		if (entity.getParent() == null) {
+    			keyName = entity.getId().toString();
+    		} else {
+				keyName = entity.getParent().getId().toString()
+						+ java.io.File.separatorChar
+						+ entity.getId().toString();
+    		}
+    		amazonS3Manager.uploadEntity(keyName, inputStream);
+    	}
+    	
+    	// Store folder as hierarchy in Amazon DynamoDB
+    	dynamoDBManager.putEntity(entity);
+    	return true;
+	}
+
+    @Override
+    public boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
+    		boolean isRenaming) {
         return false;
     }
-
-    /* (non-Javadoc)
-     * @see io.milton.s3.service.AmazonStorageService#deleteEntityByUniqueId(java.lang.String)
-     */
+    
     @Override
     public boolean deleteEntityByUniqueId(String uniqueId) {
-        // TODO Auto-generated method stub
-        return false;
+        if (StringUtils.isEmpty(uniqueId))
+        	return false;
+        
+        amazonS3Manager.deleteEntity(uniqueId);
+        dynamoDBManager.deleteEntityByUniqueId(uniqueId);
+        return true;
     }
+
+	@Override
+	public boolean downloadEntityByUniqueId(String keyNotAvailable, java.io.File destinationFile) {
+		return amazonS3Manager.downloadEntity(keyNotAvailable, destinationFile);
+	}
+
+	@Override
+	public InputStream downloadEntityByUniqueId(String keyName) {
+		return amazonS3Manager.downloadEntity(keyName);
+	}
 
 }
