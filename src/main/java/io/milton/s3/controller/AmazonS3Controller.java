@@ -33,7 +33,6 @@ import io.milton.s3.model.Folder;
 import io.milton.s3.service.AmazonStorageService;
 import io.milton.s3.service.AmazonStorageServiceImpl;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.util.Collections;
@@ -106,8 +105,8 @@ public class AmazonS3Controller {
         
         // Get all entities form Amazon DynamoDB
         List<Entity> children = amazonStorageService.findEntityByParent(parent);
-		LOG.info("Getting childrens of " + parent.getName() + "; Returning "
-				+ children.size() + " children of " + parent.getName());
+        LOG.info("Getting childrens of " + parent.getName() + "; Returning "
+                + children.size() + " items");
         return children;
     }
     
@@ -139,37 +138,36 @@ public class AmazonS3Controller {
 				+ newName + " in the folder " + parent.getName());
         
         // Create a file and store into Amazon Simple Storage Service
-        File newFile = (File) parent.addFile(newName);
-        if (amazonStorageService.putEntity(newFile, inputStream)) {
+        File newFile = parent.addFile(newName);
+        boolean isSuccess = amazonStorageService.putEntity(newFile, inputStream);
+        if (isSuccess) {
         	LOG.warn("Create Successful file " + newName + " under folder " + parent);
         }
         return newFile;
     }
     
     @Move
-    public void move(File file, Folder newParent, String newName) {
-		LOG.info("Moving file " + file.getName() + " to " + newName + " in "
-				+ newParent.getName());
-        // Update the name of file
-        file.setName(newName);
-        
+    public void renameOrMoveFile(File file, Folder newParent, String newName) {
+        LOG.info("Moving or renaming file " + file.getName() + " from folder "
+                + file.getParent().getName() + " to " + newName + " in folder "
+                + newParent.getName());
+		
         boolean isRenaming = true;
-        if (file.getParent() != newParent)
-        	isRenaming = false;
-        
-//        dynamoDBManager.updateEntityByUniqueId(file, newParent, newName, isRenaming);
-//		LOG.info("Succesful by updating or moving file " + file.getName()
-//				+ " to " + newName + " in " + newParent.getName());
+        if (file.getParent() != newParent) {
+            file.setParent(newParent);
+            // Action is moving file
+            isRenaming = false;
+        }
+        amazonStorageService.updateEntityByUniqueId(file, newParent, newName, isRenaming);
+        LOG.info("Succesful by updating or moving file " + file.getName()
+                + " to " + newName + " in " + newParent.getName());
     }
     
     @Copy
-    public void copy(File file, Folder newParent, String newName) {
+    public void copyFile(File file, Folder newParent, String newName) {
 		LOG.info("Copying file " + file.getName() + " to " + newName + " in "
 				+ newParent.getName());
-//		File copyOfFile = new File(newName, newParent, Arrays.copyOf(
-//				file.getBytes(), file.getBytes().length));
-//        newParent.getChildren().add(copyOfFile);
-//        dynamoDBManager.putEntity(copyOfFile);
+		amazonStorageService.copyEntityByUniqueId(file, newParent, null, newName);
     }
     
     @ContentLength
@@ -183,10 +181,11 @@ public class AmazonS3Controller {
     }
     
     @Get
-    public InputStream getFile(File file) throws IOException {
+    public InputStream downloadFile(File file) {
 		String keyName = file.getParent().getId().toString()
 				+ java.io.File.separatorChar + file.getId().toString();
-		LOG.info("Downloading file " + file.toString() + " under folder " + file.getParent().getName());
+		LOG.info("Key name: " + keyName);
+        LOG.info("Downloading file " + file.toString() + " under folder " + file.getParent().getName());
     	return amazonStorageService.downloadEntityByUniqueId(keyName);
     }
 }

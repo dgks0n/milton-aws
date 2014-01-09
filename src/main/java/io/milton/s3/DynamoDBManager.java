@@ -24,6 +24,8 @@ import java.util.List;
 
 public interface DynamoDBManager {
 
+    boolean isExistEntity(String entityName, Folder parent);
+    
     boolean putEntity(Entity entity);
     
     Folder findRootFolder();

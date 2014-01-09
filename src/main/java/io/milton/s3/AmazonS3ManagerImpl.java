@@ -32,6 +32,7 @@ import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AccessControlList;
+import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.Grant;
@@ -92,15 +93,20 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     }
 
     @Override
-    public void createBucket() {
+    public Bucket createBucket() {
         LOG.info("Creates a new Amazon S3 bucket " + bucketName + " with the specified name in the default (US) region");
-        amazonS3Client.createBucket(bucketName);
+        return amazonS3Client.createBucket(bucketName);
     }
 
     @Override
     public void deleteBucket() {
         LOG.info("Deletes the specified bucket " + bucketName);
         amazonS3Client.deleteBucket(bucketName);
+    }
+    
+    @Override
+    public List<Bucket> findBuckets() {
+        return amazonS3Client.listBuckets();
     }
 
     @Override
@@ -133,6 +139,22 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
                 + keyName
                 + " in Amazon S3 using one of the pre-configured CannedAccessControlLists");
         amazonS3Client.setObjectAcl(bucketName, keyName, CannedAccessControlList.PublicRead);
+    }
+    
+    @Override
+    public void copyEntity(String keyName, String targetBucketName,
+            String targetKeyName) {
+        
+        // If target bucket name is null or empty, that mean copy inside current
+        // bucket.
+        if (StringUtils.isEmpty(targetBucketName)) {
+            targetBucketName = bucketName;
+        }
+        
+        LOG.info("Copies a source object " + keyName
+                + " to a new destination bucket " + targetBucketName
+                + " with specified key " + targetKeyName + " in Amazon S3");
+        amazonS3Client.copyObject(bucketName, keyName, targetBucketName, targetKeyName);
     }
 
     @Override

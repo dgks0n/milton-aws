@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.InputStream;
 import java.util.List;
 
+import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
@@ -31,13 +32,21 @@ public interface AmazonS3Manager {
      * Create and name a bucket that stores data. Buckets are the fundamental
      * container in Amazon S3 for data storage
      */
-    void createBucket();
+    Bucket createBucket();
     
     /**
      * Delete a bucket that stored in Amazon S3 for the given bucket name
      * 
      */
     void deleteBucket();
+    
+    /**
+     * This gets a list of Buckets that you own. This also prints out the bucket
+     * name and creation date of each bucket.
+     * 
+     * @return a list of buckets
+     */
+    List<Bucket> findBuckets();
     
     /**
      * Store an infinite amount of data in a bucket. Upload as many objects as
@@ -55,6 +64,17 @@ public interface AmazonS3Manager {
     void deleteEntity(String keyName);
     
     void publicEntity(String keyName);
+    
+    /**
+     * Copies a source object to a new destination in Amazon S3. You need to
+     * provide the request information, such as source bucket name, source key
+     * name, destination bucket name, and destination key.
+     * 
+     * @param keyName
+     * @param targetBucketName
+     * @param targetKeyName
+     */
+    void copyEntity(String keyName, String targetBucketName, String targetKeyName);
 
     boolean isPublicEntity(String keyName);
 

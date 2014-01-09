@@ -17,7 +17,6 @@
 package io.milton.s3.service;
 
 import io.milton.s3.model.Entity;
-import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
 
 import java.io.InputStream;
@@ -33,7 +32,9 @@ public interface AmazonStorageService {
     
     boolean putEntity(Entity entity, InputStream inputStream);
     
-    boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
+    void copyEntityByUniqueId(Entity entity, Folder newParent, String newBucketName, String newName);
+    
+    boolean updateEntityByUniqueId(Entity entity, Folder newParent, String newEntityName, 
     		boolean isRenaming);
     
     boolean deleteEntityByUniqueId(String uniqueId);

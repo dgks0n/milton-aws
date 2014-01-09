@@ -33,10 +33,10 @@ import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 
 public class DynamoDBEntityMapper {
 
-	public static List<Entity> convertItemsToEntities(Folder parent, List<Map<String, 
-			AttributeValue>> items) {
-        if (items.isEmpty())
-        	Collections.emptyList();
+	public static List<Entity> convertItemsToEntities(Folder parent, List<Map<String, AttributeValue>> items) {
+        if (items.isEmpty()) {
+            Collections.emptyList();
+        }
         
         List<Entity> childrens = new ArrayList<Entity>();
         for (Map<String, AttributeValue> item : items) {
@@ -48,7 +48,10 @@ public class DynamoDBEntityMapper {
     }
     
 	public static Entity convertItemToEntity(Folder parent, Map<String, AttributeValue> item) {
-    	
+	    if (item == null || item.isEmpty()) {
+	        return null;
+	    }
+	    
     	Date createdDate = DateUtils.dateFromString(item.get(AttributeKey.CREATED_DATE).getS());
         Date modifiedDate = DateUtils.dateFromString(item.get(AttributeKey.MODIFIED_DATE).getS());
         

@@ -62,7 +62,6 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
             
             // Tries to create new folder for the given UUID
             dynamoDBManager.putEntity(rootFolder);
-            return rootFolder;
         }
         return rootFolder;
     }
@@ -89,9 +88,14 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     			parent.getId().toString());
     	List<Entity> files = new ArrayList<Entity>();
     	for (S3ObjectSummary objectSummary : objectSummaries) {
-    		Entity entity = dynamoDBManager.findEntityByUniqueId(objectSummary.getKey(), parent);
-    		if (entity != null) {
-    			files.add(entity);
+    	    String uniqueId = objectSummary.getKey();
+    	    
+    	    // Search by only unique UUID of entity
+    	    uniqueId = uniqueId.substring(uniqueId.indexOf("/") + 1);
+    		File file = (File) dynamoDBManager.findEntityByUniqueId(uniqueId, parent);
+    		if (file != null) {
+    		    file.setSize(objectSummary.getSize());
+    			files.add(file);
     		}
     	}
     	
@@ -115,26 +119,40 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     	
     	// Only store file in Amazon S3
     	if (entity instanceof File) {
-    		String keyName = null;
-    		if (entity.getParent() == null) {
-    			keyName = entity.getId().toString();
-    		} else {
-				keyName = entity.getParent().getId().toString()
-						+ java.io.File.separatorChar
-						+ entity.getId().toString();
-    		}
+    	    String keyName = getAmazonS3Key(entity);
     		amazonS3Manager.uploadEntity(keyName, inputStream);
     	}
     	
     	// Store folder as hierarchy in Amazon DynamoDB
-    	dynamoDBManager.putEntity(entity);
+        boolean isExistOrNot = dynamoDBManager.isExistEntity(entity.getName(), entity.getParent());
+        if (isExistOrNot)
+            return false;
+        
+        dynamoDBManager.putEntity(entity);
     	return true;
 	}
+    
+    @Override
+    public void copyEntityByUniqueId(Entity entity, Folder newParent, String newBucketName,
+            String newName) {
+        String targetKeyName = newParent.getId().toString()
+                + java.io.File.separatorChar + entity.getId().toString();
+        amazonS3Manager.copyEntity(getAmazonS3Key(entity), newBucketName, targetKeyName);
+        
+    }
 
     @Override
-    public boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
+    public boolean updateEntityByUniqueId(Entity entity, Folder newParent, String newEntityName, 
     		boolean isRenaming) {
-        return false;
+        if (!isRenaming) {
+            String keyName = getAmazonS3Key(entity);
+            // We must update entity in S3 because action is moving file
+            amazonS3Manager.copyEntity(keyName, null, newEntityName);
+            // Remove old entity after moved
+            amazonS3Manager.deleteEntity(keyName);
+        }
+        return dynamoDBManager.updateEntityByUniqueId((File) entity, newParent,
+                newEntityName, isRenaming);
     }
     
     @Override
@@ -157,4 +175,15 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
 		return amazonS3Manager.downloadEntity(keyName);
 	}
 
+	private String getAmazonS3Key(Entity entity) {
+        String keyName = null;
+        if (entity.getParent() == null) {
+            keyName = entity.getId().toString();
+        } else {
+            keyName = entity.getParent().getId().toString()
+                    + java.io.File.separatorChar + entity.getId().toString();
+        }
+        return keyName;
+    }
+	
 }

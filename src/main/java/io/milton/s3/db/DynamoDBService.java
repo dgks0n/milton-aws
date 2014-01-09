@@ -51,6 +51,8 @@ public interface DynamoDBService {
     
     Map<String, AttributeValue> getItem(HashMap<String, AttributeValue> primaryKey);
     
+    Map<String, AttributeValue> getItem(List<Map<String, Condition>> conditions);
+    
     List<Map<String, AttributeValue>> getItem(Map<String, Condition> conditions);
     
     UpdateItemResult updateItem(HashMap<String, AttributeValue> primaryKey, 

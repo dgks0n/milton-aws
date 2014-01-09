@@ -82,6 +82,34 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
         }
 	}
 	
+	@Override
+    public boolean isExistEntity(String entityName, Folder parent) {
+        if (StringUtils.isEmpty(entityName))
+            return false;
+        
+        Map<String, Condition> conditions = new HashMap<String, Condition>();
+        String parentId = AttributeKey.NOT_EXIST;
+        if (parent != null) {
+            parentId = parent.getId().toString();
+        }
+        
+        // Search entity by parent unique UUID
+        Condition parentUniqueId = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
+                .withAttributeValueList(new AttributeValue().withS(parentId));
+        conditions.put(AttributeKey.PARENT_UUID, parentUniqueId);
+        
+        // Search entity by name
+        Condition entityKeyName = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
+                .withAttributeValueList(new AttributeValue().withS(entityName));
+        conditions.put(AttributeKey.ENTITY_NAME, entityKeyName);
+        
+        List<Entity> children = dynamoDBService.getChildren(parent, conditions);
+        if (children == null || children.isEmpty())
+            return false;
+        
+        return true;
+    }
+	
 	/**
 	 * The putEntity method stores an item in a table
 	 * 
@@ -227,4 +255,5 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 		
 		return isSuccess;
 	}
+
 }

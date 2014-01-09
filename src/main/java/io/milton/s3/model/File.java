@@ -65,11 +65,9 @@ public class File extends Entity {
      * @return ContentType
      */
     protected String getContentTypeFromName() {
-    	String contentType = URLConnection.guessContentTypeFromName(this.getName());
-        if (StringUtils.isEmpty(contentType)) {
-			contentType = MimetypesFileTypeMap.getDefaultFileTypeMap()
-					.getContentType(this.getName());
-        }
+    	String contentType = URLConnection.guessContentTypeFromName(getName());
+        if (StringUtils.isEmpty(contentType))
+            contentType = MimetypesFileTypeMap.getDefaultFileTypeMap().getContentType(getName());
         return contentType;
     }
     

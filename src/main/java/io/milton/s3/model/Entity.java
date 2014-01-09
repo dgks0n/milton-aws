@@ -116,7 +116,7 @@ public class Entity {
     }
 
     public void setParent(final Folder parent) {
-        this.parent = (Folder) parent;
+        this.parent = parent;
     }
 
 	@Override

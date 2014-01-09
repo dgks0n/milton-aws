@@ -301,8 +301,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             return Collections.emptyList();
         
 		LOG.info("Successful by getting items from " + repository
-				+ " based on conditions: " + conditions.toString()
-				+ "; Returning " + count + " of items");
+				+ " based on conditions: " + conditions.toString() + "; Returning " + count + " of items");
         return scanResult.getItems();
     }
     
@@ -333,6 +332,12 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         LOG.info("Successful by deleting item in " + repository);
         return deleteItemResult;
     }
+    
+    @Override
+    public Map<String, AttributeValue> getItem(List<Map<String, Condition>> conditions) {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
     @Override
     public List<Entity> getChildren(Folder parent, Map<String, Condition> conditions) {
@@ -349,14 +354,13 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         conditions.put(AttributeKey.PARENT_UUID, condition);
             
         List<Entity> entities = getChildren(null, conditions);
-        if (entities != null && !entities.isEmpty()) {
-        	Entity entity = entities.get(0);
-    		if (entity instanceof Folder)
-    			return (Folder) entity;
+        if (entities == null || entities.isEmpty()) {
+            LOG.warn("Could not find item for the given "
+                    + conditions.toString() + " from " + repository);
+            return null;
         }
         
-        LOG.warn("Could not find item for the given " + conditions.toString() + " from " + repository);
-		return null;
+        return (Folder) entities.get(0);
 	}
     
 }
