@@ -55,6 +55,14 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     }
     
     @Override
+	public void deleteBucket() {
+    	// Deletes the specified bucket in Amazon S3
+    	if (amazonS3Manager.deleteBucket()) {
+    		dynamoDBManager.deleteTable();
+    	}
+	}
+    
+    @Override
     public Folder findRootFolder() {
         Folder rootFolder = (Folder) dynamoDBManager.findRootFolder();
         if (rootFolder == null) {
@@ -86,7 +94,7 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     	// Get all files of current folder have already existing in Amazon S3
     	List<S3ObjectSummary> objectSummaries = amazonS3Manager.findEntityByPrefixKey(
     			parent.getId().toString());
-    	List<Entity> files = new ArrayList<Entity>();
+    	List<Entity> children = new ArrayList<Entity>();
     	for (S3ObjectSummary objectSummary : objectSummaries) {
     	    String uniqueId = objectSummary.getKey();
     	    
@@ -95,41 +103,36 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     		File file = (File) dynamoDBManager.findEntityByUniqueId(uniqueId, parent);
     		if (file != null) {
     		    file.setSize(objectSummary.getSize());
-    			files.add(file);
+    		    children.add(file);
     		}
-    	}
-    	
-    	List<Entity> children = new ArrayList<Entity>();
-    	if (files != null && !files.isEmpty()) {
-    		children.addAll(files);
     	}
     	
     	// Get all folders of current folder have already existing in Amazon DynamoDB
     	List<Entity> folders = dynamoDBManager.findEntityByParent(parent);
     	if (folders != null && !folders.isEmpty()) {
-    		children.addAll(folders);
+    		for (Entity folder : folders) {
+    			if (!children.contains(folder)) {
+    				children.add(folder);
+    			}
+    		}
     	}
         return children;
     }
     
     @Override
 	public boolean putEntity(Entity entity, InputStream inputStream) {
-    	if (entity == null)
+    	if (entity == null) {
     		return false;
+    	}
     	
-    	// Only store file in Amazon S3
     	if (entity instanceof File) {
     	    String keyName = getAmazonS3Key(entity);
+    	    // Only store file in Amazon S3
     		amazonS3Manager.uploadEntity(keyName, inputStream);
     	}
     	
     	// Store folder as hierarchy in Amazon DynamoDB
-        boolean isExistOrNot = dynamoDBManager.isExistEntity(entity.getName(), entity.getParent());
-        if (isExistOrNot)
-            return false;
-        
-        dynamoDBManager.putEntity(entity);
-    	return true;
+    	return dynamoDBManager.putEntity(entity);
 	}
     
     @Override

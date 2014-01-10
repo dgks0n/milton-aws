@@ -118,15 +118,11 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 */
 	@Override
 	public boolean putEntity(Entity entity) {
-		boolean isSuccess = false;
-		if (entity == null)
-			return isSuccess;
-		
 		Map<String, AttributeValue> newItem = dynamoDBService.newItem(entity);
 		if (dynamoDBService.putItem(newItem) != null)
-			isSuccess = true;
-			
-		return isSuccess;
+			return true;
+		
+		return false;
 	}
 	
 	/**
@@ -189,8 +185,9 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 */
 	@Override
 	public List<Entity> findEntityByParent(Folder parent) {
-		if (parent == null)
+		if (parent == null) {
 			return Collections.emptyList();
+		}
 		
 		Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
             .withAttributeValueList(new AttributeValue().withS(parent.getId().toString()));
@@ -254,6 +251,11 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 			isSuccess = true;
 		
 		return isSuccess;
+	}
+
+	@Override
+	public void deleteTable() {
+		dynamoDBService.deleteTable();
 	}
 
 }

@@ -157,13 +157,17 @@ public class DynamoDBServiceImpl implements DynamoDBService {
 
     @Override
     public TableDescription describeTable() {
-        DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-        TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
-        if (tableDescription != null) {
-        	LOG.info("Table description for " + repository + ": " + tableDescription);
-        }
-        
-        return tableDescription;
+    	try {
+    		DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
+            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
+            if (tableDescription != null) {
+            	LOG.info("Table description for " + repository + ": " + tableDescription);
+            }
+            return tableDescription;
+		} catch (ResourceNotFoundException rnfe) {
+			LOG.warn(rnfe.getMessage());
+		}
+    	return null;
     }
 
     @Override
@@ -256,6 +260,11 @@ public class DynamoDBServiceImpl implements DynamoDBService {
      */
     @Override
     public PutItemResult putItem(Map<String, AttributeValue> item) {
+    	if (item == null || item.isEmpty()) {
+    		LOG.warn("Does not support store null or empty entity in Amazon S3 and DynamoDB");
+    		return null;
+    	}
+    	
         try {
             PutItemRequest putItemRequest = new PutItemRequest(repository, item);
             PutItemResult putItemResult = dynamoDBClient.putItem(putItemRequest);
@@ -297,8 +306,9 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         ScanRequest scanRequest = new ScanRequest(repository).withScanFilter(conditions);
         ScanResult scanResult = dynamoDBClient.scan(scanRequest);
         int count = scanResult.getCount();
-        if (count == 0)
-            return Collections.emptyList();
+        if (count == 0) {
+        	return Collections.emptyList();
+        }
         
 		LOG.info("Successful by getting items from " + repository
 				+ " based on conditions: " + conditions.toString() + "; Returning " + count + " of items");

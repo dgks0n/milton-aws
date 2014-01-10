@@ -24,6 +24,12 @@ import java.util.List;
 
 public interface AmazonStorageService {
 	
+	/**
+	 * Remove storage database in Amazon S3
+	 * 
+	 */
+	void deleteBucket();
+	
     Folder findRootFolder();
     
     Entity findEntityByUniqueId(Entity entity);

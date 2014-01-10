@@ -19,6 +19,7 @@ package io.milton.s3;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -34,9 +35,13 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
+import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.Grant;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.Permission;
 import com.amazonaws.services.s3.model.S3Object;
@@ -89,24 +94,56 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     @Override
     public boolean isRootBucket() {
         LOG.info("Checks if the specified bucket " + bucketName + " exists");
-        return amazonS3Client.doesBucketExist(bucketName);
+        try {
+        	return amazonS3Client.doesBucketExist(bucketName);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
+        return false;
     }
 
     @Override
     public Bucket createBucket() {
         LOG.info("Creates a new Amazon S3 bucket " + bucketName + " with the specified name in the default (US) region");
-        return amazonS3Client.createBucket(bucketName);
+        try {
+        	return amazonS3Client.createBucket(bucketName);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
+        return null;
     }
 
     @Override
-    public void deleteBucket() {
-        LOG.info("Deletes the specified bucket " + bucketName);
-        amazonS3Client.deleteBucket(bucketName);
+    public boolean deleteBucket() {
+    	LOG.info("Deletes the specified bucket " + bucketName);
+        try {
+        	// Make sure delete all the entities in the bucket
+        	deleteEntities();
+        	// Delete the specified bucket for the given name
+        	amazonS3Client.deleteBucket(bucketName);
+        	return true;
+        } catch (AmazonServiceException ase) {
+        	LOG.error(ase.getMessage(), ase);
+		} catch (AmazonClientException ace) {
+			LOG.error(ace.getMessage(), ace);
+		}
+        return false;
     }
     
     @Override
     public List<Bucket> findBuckets() {
-        return amazonS3Client.listBuckets();
+    	try {
+    		return amazonS3Client.listBuckets();
+        } catch (AmazonServiceException ase) {
+        	LOG.error(ase.getMessage(), ase);
+		} catch (AmazonClientException ace) {
+			LOG.error(ace.getMessage(), ace);
+		}
+        return Collections.emptyList();
     }
 
     @Override
@@ -123,22 +160,65 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
                 + fileStream.toString()
                 + " and object metadata to Amazon S3 under the specified bucket "
                 + bucketName + " and key name " + keyName);
-        amazonS3Client.putObject(bucketName, keyName, fileStream, null);
+
+        try {
+        	amazonS3Client.putObject(bucketName, keyName, fileStream, null);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
     }
 
     @Override
     public void deleteEntity(String keyName) {
         LOG.info("Deletes the specified object " + keyName
                 + " in the specified bucket " + bucketName);
-        amazonS3Client.deleteObject(bucketName, keyName);
+        try {
+        	amazonS3Client.deleteObject(bucketName, keyName);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
     }
+    
+    @Override
+	public void deleteEntities() {
+		LOG.info("Deletes multiple objects in a bucket " + bucketName + " from Amazon S3");
+		List<S3ObjectSummary> s3ObjectSummaries = findEntityByBucket();
+		if (s3ObjectSummaries == null || s3ObjectSummaries.isEmpty())
+			return;
+		
+		// Provide a list of object keys and versions.
+		List<KeyVersion> keyVersions = new ArrayList<KeyVersion>();
+		for (S3ObjectSummary s3ObjectSummary : s3ObjectSummaries) {
+			keyVersions.add( new KeyVersion(s3ObjectSummary.getKey()));
+		}
+
+		DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(bucketName)
+			.withKeys(keyVersions);
+		try {
+		    DeleteObjectsResult deleteObjectsResult = amazonS3Client.deleteObjects(deleteObjectsRequest);
+		    LOG.info("Successfully deleted all the " + deleteObjectsResult.getDeletedObjects().size() + " items.\n");
+		} catch (MultiObjectDeleteException mode) {
+		    LOG.error("Could not delete all the entities in a bucket " + bucketName, mode);
+		}
+	}
 
     @Override
     public void publicEntity(String keyName) {
         LOG.info("Sets the CannedAccessControlList for the specified object "
                 + keyName
                 + " in Amazon S3 using one of the pre-configured CannedAccessControlLists");
-        amazonS3Client.setObjectAcl(bucketName, keyName, CannedAccessControlList.PublicRead);
+        
+        try {
+        	amazonS3Client.setObjectAcl(bucketName, keyName, CannedAccessControlList.PublicRead);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
     }
     
     @Override
@@ -154,19 +234,33 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
         LOG.info("Copies a source object " + keyName
                 + " to a new destination bucket " + targetBucketName
                 + " with specified key " + targetKeyName + " in Amazon S3");
-        amazonS3Client.copyObject(bucketName, keyName, targetBucketName, targetKeyName);
+        
+        try {
+        	amazonS3Client.copyObject(bucketName, keyName, targetBucketName, targetKeyName);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
     }
 
     @Override
     public boolean isPublicEntity(String keyName) {
         LOG.info("Gets the AccessControlList (ACL) for the specified object "
                 + keyName + " in the specified bucket " + bucketName);
-        AccessControlList accessControlList = amazonS3Client.getObjectAcl(bucketName, keyName);
-        for (Iterator<Grant> iterator = accessControlList.getGrants().iterator(); iterator.hasNext();) {
-            Grant grant = iterator.next();
-            if (grant.getPermission().equals(Permission.Read)
-                    && grant.getGrantee().getIdentifier().equals(GROUPS_USERS))
-                return true;
+        
+        try {
+        	AccessControlList accessControlList = amazonS3Client.getObjectAcl(bucketName, keyName);
+            for (Iterator<Grant> iterator = accessControlList.getGrants().iterator(); iterator.hasNext();) {
+                Grant grant = iterator.next();
+                if (grant.getPermission().equals(Permission.Read)
+                        && grant.getGrantee().getIdentifier().equals(GROUPS_USERS))
+                    return true;
+            }
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
         }
         return false;
     }
@@ -194,8 +288,15 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     public InputStream downloadEntity(String keyName) {
         LOG.info("Gets the object stored in Amazon S3 under the specified bucket "
                 + bucketName + " and key " + keyName);
-        S3Object s3Object = amazonS3Client.getObject(bucketName, keyName);
-        return s3Object.getObjectContent();
+        try {
+        	S3Object s3Object = amazonS3Client.getObject(bucketName, keyName);
+            return s3Object.getObjectContent();
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
+        return null;
     }
 
     @Override
@@ -210,12 +311,52 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     
     @Override
 	public S3Object findEntityByUniqueKey(String keyName) {
-    	if (StringUtils.isEmpty(keyName))
+    	if (StringUtils.isEmpty(keyName)) {
     		return null;
+    	}
     	
     	LOG.info("Gets the object stored in Amazon S3 under the specified bucket "
                 + bucketName + " and key " + keyName);
-        return amazonS3Client.getObject(bucketName, keyName);
+    	try {
+    		return amazonS3Client.getObject(bucketName, keyName);
+        } catch (AmazonServiceException ase) {
+            LOG.warn(ase.getMessage(), ase);
+        } catch (AmazonClientException ace) {
+            LOG.warn(ace.getMessage(), ace);
+        }
+    	return null;
+	}
+    
+    @Override
+	public List<S3ObjectSummary> findEntityByBucket() {
+		LOG.info("Returns a list of summary information about the objects in the specified buckets "
+				+ bucketName);
+		
+		List<S3ObjectSummary> objectSummaries = new ArrayList<S3ObjectSummary>();
+		ObjectListing objectListing;
+		try {
+			do {
+				objectListing = amazonS3Client.listObjects(bucketName);
+				for (final S3ObjectSummary objectSummary: objectListing.getObjectSummaries()) {
+					objectSummaries.add(objectSummary);
+				}
+				objectListing = amazonS3Client.listNextBatchOfObjects(objectListing);
+			} while (objectListing.isTruncated());
+			
+		} catch (AmazonServiceException ase) {
+			LOG.error("Caught an AmazonServiceException, "
+					+ "which means your request made it "
+					+ "to Amazon S3, but was rejected with an error response "
+					+ "for some reason.", ase);
+		} catch (AmazonClientException ace) {
+			LOG.error("Caught an AmazonClientException, "
+					+ "which means the client encountered "
+					+ "an internal error while trying to communicate"
+					+ " with S3, "
+					+ "such as not being able to access the network.", ace);
+		}
+		
+		return objectSummaries;
 	}
 
 	@Override

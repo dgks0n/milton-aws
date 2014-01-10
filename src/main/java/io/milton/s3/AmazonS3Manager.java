@@ -38,7 +38,7 @@ public interface AmazonS3Manager {
      * Delete a bucket that stored in Amazon S3 for the given bucket name
      * 
      */
-    void deleteBucket();
+    boolean deleteBucket();
     
     /**
      * This gets a list of Buckets that you own. This also prints out the bucket
@@ -63,6 +63,11 @@ public interface AmazonS3Manager {
 
     void deleteEntity(String keyName);
     
+    /**
+     * Deletes multiple objects in a single bucket from S3
+     */
+    void deleteEntities();
+    
     void publicEntity(String keyName);
     
     /**
@@ -85,6 +90,14 @@ public interface AmazonS3Manager {
     String getResourceUrl(String keyName);
     
     S3Object findEntityByUniqueKey(String keyName);
+    
+    /**
+	 * Returns a list of summary information about the objects in the specified
+	 * buckets.
+	 * 
+	 * @return
+	 */
+    List<S3ObjectSummary> findEntityByBucket();
     
     /**
 	 * This method to list object keys in a bucket for the given prefix

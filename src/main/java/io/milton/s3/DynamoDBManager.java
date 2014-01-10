@@ -40,4 +40,10 @@ public interface DynamoDBManager {
     		boolean isRenaming);
     
     boolean deleteEntityByUniqueId(String uniqueId);
+    
+    /**
+	 * Delete storage database in Amazon DynamoDB for the given table name
+	 * 
+	 */
+    void deleteTable();
 }
