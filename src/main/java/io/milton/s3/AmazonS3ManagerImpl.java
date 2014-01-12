@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
+import com.amazonaws.regions.Region;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AccessControlList;
@@ -53,16 +54,8 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
 
     private static final Logger LOG = LoggerFactory.getLogger(AmazonS3ManagerImpl.class);
 
-    private static final String GROUPS_USERS = "http://acs.amazonaws.com/groups/global/AllUsers";
-
-    private static final String ENDPOINT_START = "s3-";
-    private static final String ENDPOINT_END = ".amazonaws.com";
-    private static final String ENDPOINT_STANDARD = "s3.amazonaws.com";
-
     // Amazon S3 Client
     private final AmazonS3 amazonS3Client;
-    // Endpoint default
-    private final String regionEndpoint;
 
     /**
      * You can choose the geographical region where Amazon S3 will store the
@@ -71,24 +64,14 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
      * 
      * @param region
      */
-    public AmazonS3ManagerImpl(String region) {
+    public AmazonS3ManagerImpl(Region region) {
         LOG.info("Create an instance of the AmazonS3Client class by providing your "
                 + "AWS Account or IAM user credentials (Access Key ID, Secret Access Key)");
-        regionEndpoint = region.equals(ENDPOINT_STANDARD) ? ENDPOINT_STANDARD
-                : ENDPOINT_START + region + ENDPOINT_END;
 
         // Create an instance of the AmazonS3Client class by providing your AWS
         // Account or IAM user credentials (Access Key ID, Secret Access Key)
         amazonS3Client = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
-        
-        // Overrides the default endpoint for this client
-        // ("http://s3-us-east-1.amazonaws.com/") and explicitly provides
-        // an AWS region ID and AWS service name to use when the client
-        // calculates a signature for requests. In almost all cases, this region
-        // ID and service name are automatically determined from the endpoint,
-        // and callers should use the simpler one-argument form of setEndpoint
-        // instead of this method.
-        amazonS3Client.setEndpoint(regionEndpoint);
+        amazonS3Client.setRegion(region);
     }
 
     @Override
@@ -190,16 +173,18 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     }
 
     @Override
-    public void deleteEntity(String bucketName, String keyName) {
+    public boolean deleteEntity(String bucketName, String keyName) {
         LOG.info("Deletes the specified object " + keyName
                 + " in the specified bucket " + bucketName);
         try {
         	amazonS3Client.deleteObject(bucketName, keyName);
+        	return true;
         } catch (AmazonServiceException ase) {
             LOG.warn(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
             LOG.warn(ace.getMessage(), ace);
         }
+        return false;
     }
     
     @Override
@@ -281,6 +266,7 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
         LOG.info("Gets the AccessControlList (ACL) for the specified object "
                 + keyName + " in the specified bucket " + bucketName);
         
+        final String GROUPS_USERS = "http://acs.amazonaws.com/groups/global/AllUsers";
         try {
         	AccessControlList accessControlList = amazonS3Client.getObjectAcl(bucketName, keyName);
             for (Iterator<Grant> iterator = accessControlList.getGrants().iterator(); iterator.hasNext();) {
@@ -331,16 +317,6 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
         } catch (AmazonClientException ace) {
             LOG.warn(ace.getMessage(), ace);
         }
-        return null;
-    }
-
-    @Override
-    public String getResourceUrl(String bucketName, String keyName) {
-        LOG.info("Returns the URL to the key in the bucket given " + bucketName + ", using the client's scheme and endpoint");
-        if (isPublicEntity(bucketName, keyName))
-            return "http://" + regionEndpoint + File.separatorChar + bucketName
-                    + File.separatorChar + keyName;
-
         return null;
     }
     

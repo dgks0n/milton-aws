@@ -42,10 +42,10 @@ public interface DynamoDBService {
      * Once the table is in the ACTIVE state, you can perform data plane
      * operations.
      * 
-     * @param repository
+     * @param tableName
      *            - The name of the table
      */
-    void createTable(String repository);
+    void createTable(String tableName);
 
     /**
      * Deletes a table and all of its items
@@ -55,16 +55,16 @@ public interface DynamoDBService {
      * ResourceInUseException . If the specified table does not exist, Amazon
      * DynamoDB returns a ResourceNotFoundException.
      * 
-     * @param repository
+     * @param tableName
      *            - The name of the table
      */
-    void deleteTable(String repository);
+    void deleteTable(String tableName);
 
-    boolean isTableExist(String repository);
+    boolean isTableExist(String tableName);
 
     Map<String, AttributeValue> newItem(Entity entity);
 
-    PutItemResult putItem(String repository, Map<String, AttributeValue> item);
+    PutItemResult putItem(String tableName, Map<String, AttributeValue> item);
 
     /**
      * Retrieves a set of Attributes for an item that matches the primary key.
@@ -73,17 +73,17 @@ public interface DynamoDBService {
      * use ConsistentRead . Although this operation might take longer than a
      * standard read, it always returns the last updated value.
      * 
-     * @param repository
+     * @param tableName
      *            - The name of the table
      * @param primaryKey
      *            - The primary key of the item
      * @return The response from the GetItem service method, as returned by
      *         AmazonDynamoDB
      */
-    Map<String, AttributeValue> getItem(String repository,
+    Map<String, AttributeValue> getItem(String tableName,
             HashMap<String, AttributeValue> primaryKey);
 
-    List<Map<String, AttributeValue>> getItem(String repository,
+    List<Map<String, AttributeValue>> getItem(String tableName,
             Map<String, Condition> conditions);
 
     /**
@@ -91,7 +91,7 @@ public interface DynamoDBService {
      * (insert a new attribute name-value pair if it doesn't exist, or replace
      * an existing name-value pair if it has certain expected attribute values).
      * 
-     * @param repository
+     * @param tableName
      *            - The name of the table
      * @param primaryKey
      *            - The primary key of the item
@@ -99,7 +99,7 @@ public interface DynamoDBService {
      *            - The new expected attribute values
      * @return
      */
-    UpdateItemResult updateItem(String repository,
+    UpdateItemResult updateItem(String tableName,
             HashMap<String, AttributeValue> primaryKey,
             Map<String, AttributeValueUpdate> updateItems);
 
@@ -109,12 +109,12 @@ public interface DynamoDBService {
      * You can perform a conditional delete operation that deletes the item if
      * it exists, or if it has an expected attribute value.
      * 
-     * @param repository
+     * @param tableName
      *              - The name of the table
      * @param primaryKey
      *              - The primary key of the item
      * @return
      */
-    DeleteItemResult deleteItem(String repository,
+    DeleteItemResult deleteItem(String tableName,
             HashMap<String, AttributeValue> primaryKey);
 }

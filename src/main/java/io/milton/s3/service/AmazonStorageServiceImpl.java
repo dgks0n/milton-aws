@@ -50,7 +50,7 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     
     public AmazonStorageServiceImpl(Region region) {
         dynamoDBManager = new DynamoDBManagerImpl(region);
-        amazonS3Manager = new AmazonS3ManagerImpl(region.getName());
+        amazonS3Manager = new AmazonS3ManagerImpl(region);
     }
     
     @Override
@@ -190,12 +190,15 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     
     @Override
     public boolean deleteEntityByUniqueId(String bucketName, String uniqueId) {
-        if (StringUtils.isEmpty(uniqueId))
-        	return false;
+        if (StringUtils.isEmpty(uniqueId)) {
+            return false;
+        }
         
-        amazonS3Manager.deleteEntity(bucketName, uniqueId);
-        dynamoDBManager.deleteEntityByUniqueId(bucketName, uniqueId);
-        return true;
+        // Tried to remove file based on unique UUID in Amazon S3
+        if (!amazonS3Manager.deleteEntity(bucketName, uniqueId)) {
+            return false;
+        }
+        return dynamoDBManager.deleteEntityByUniqueId(bucketName, uniqueId);
     }
 
 	@Override

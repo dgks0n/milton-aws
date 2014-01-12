@@ -26,35 +26,35 @@ public interface DynamoDBManager {
     /**
      * Create storage database in Amazon DynamoDB for the given table name
      * 
-     * @param repository
+     * @param tableName
      *              - the storage database name
      */
-    void createTable(String repository);
+    void createTable(String tableName);
     
     /**
      * Delete storage database in Amazon DynamoDB for the given table name
      * 
-     * @param repository
+     * @param tableName
      *              - the storage database name
      */
-    void deleteTable(String repository);
+    void deleteTable(String tableName);
     
-    boolean isExistEntity(String repository, String entityName, Folder parent);
+    boolean isExistEntity(String tableName, String entityName, Folder parent);
     
-    boolean putEntity(String repository, Entity entity);
+    boolean putEntity(String tableName, Entity entity);
     
-    Folder findRootFolder(String repository);
+    Folder findRootFolder(String tableName);
     
-    Entity findEntityByUniqueId(String repository, Entity entity);
+    Entity findEntityByUniqueId(String tableName, Entity entity);
     
-    Entity findEntityByUniqueId(String repository, String uniqueId, Folder parent);
+    Entity findEntityByUniqueId(String tableName, String uniqueId, Folder parent);
     
-    List<Entity> findEntityByParent(String repository, Folder parent);
+    List<Entity> findEntityByParent(String tableName, Folder parent);
     
-    List<Entity> findEntityByParentAndType(String repository, Folder parent, boolean isDirectory);
+    List<Entity> findEntityByParentAndType(String tableName, Folder parent, boolean isDirectory);
     
-    boolean updateEntityByUniqueId(String repository, Entity entity, Folder newParent, 
+    boolean updateEntityByUniqueId(String tableName, Entity entity, Folder newParent, 
             String newEntityName, boolean isRenamingAction);
     
-    boolean deleteEntityByUniqueId(String repository, String uniqueId);
+    boolean deleteEntityByUniqueId(String tableName, String uniqueId);
 }

@@ -118,8 +118,9 @@ public interface AmazonS3Manager {
      *            delete
      * @param keyName
      *            - The key of the object to delete
+     * @return FALSE if it doesn't exist or cann't delete, otherwise TRUE
      */
-    void deleteEntity(String bucketName, String keyName);
+    boolean deleteEntity(String bucketName, String keyName);
     
     /**
      * Deletes multiple objects in a single bucket from S3
@@ -173,8 +174,6 @@ public interface AmazonS3Manager {
      * @return The object stored in Amazon S3 in the specified bucket and key
      */
     InputStream downloadEntity(String bucketName, String keyName);
-
-    String getResourceUrl(String bucketName, String keyName);
     
     S3Object findEntityByUniqueKey(String bucketName, String keyName);
     

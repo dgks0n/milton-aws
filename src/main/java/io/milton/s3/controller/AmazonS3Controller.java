@@ -18,15 +18,20 @@ package io.milton.s3.controller;
 
 import io.milton.annotations.ChildrenOf;
 import io.milton.annotations.ContentLength;
+import io.milton.annotations.ContentType;
 import io.milton.annotations.Copy;
+import io.milton.annotations.CreatedDate;
+import io.milton.annotations.Delete;
 import io.milton.annotations.DisplayName;
 import io.milton.annotations.Get;
 import io.milton.annotations.MakeCollection;
+import io.milton.annotations.ModifiedDate;
 import io.milton.annotations.Move;
 import io.milton.annotations.Name;
 import io.milton.annotations.PutChild;
 import io.milton.annotations.ResourceController;
 import io.milton.annotations.Root;
+import io.milton.annotations.UniqueId;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
@@ -36,7 +41,10 @@ import io.milton.s3.service.AmazonStorageServiceImpl;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+
+import javax.activation.MimetypesFileTypeMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,6 +140,11 @@ public class AmazonS3Controller {
         
         // Create a file and store into Amazon Simple Storage Service
         File newFile = parent.addFile(newName);
+        
+        // Detect content type of input stream
+        String contentType = new MimetypesFileTypeMap(inputStream).getContentType(newName);
+        newFile.setContentType(contentType);
+        LOG.info("Content type of file " + newName + " is " + contentType);
         boolean isSuccess = amazonStorageService.putEntity(BUCKET_NAME, newFile, inputStream);
         if (isSuccess) {
         	LOG.warn("Create Successful file " + newName + " under folder " + parent);
@@ -173,16 +186,60 @@ public class AmazonS3Controller {
     }
     
     @ContentLength
-    public Long folderContentLength(Folder folder) {
-        return 0L;
+    public Long folderContentLength(Entity entity) {
+        if (entity instanceof Folder) {
+            LOG.warn("Could not get content length of folder " + entity.getName());
+            return 0L;
+        }
+        
+        return ((File) entity).getSize();
+    }
+    
+    @ContentType
+    public String getContentType(Entity entity) {
+        if (entity instanceof File) {
+            return ((File) entity).getContentType();
+        }
+        return "";
+    }
+    
+    @CreatedDate
+    public Date getCreatedDate(Entity entity) {
+        LOG.info("Getting the created date for the source object "
+                + entity.getName());
+        return entity.getCreatedDate();
+    }
+    
+    @ModifiedDate
+    public Date getModifiedDate(Entity entity) {
+        LOG.info("Getting the modified date for the source object "
+                + entity.getName());
+        return entity.getModifiedDate();
+    }
+    
+    @UniqueId
+    public String getUniqueId(Entity entity) {
+        return entity.getId().toString();
     }
     
     @Get
     public InputStream downloadFile(File file) {
 		String keyName = file.getParent().getId().toString()
 				+ java.io.File.separatorChar + file.getId().toString();
-		LOG.info("Key name: " + keyName);
-        LOG.info("Downloading file " + file.toString() + " under folder " + file.getParent().getName());
+        LOG.info("Downloading file " + file.toString() + " under folder "
+                + file.getParent().getName());
     	return amazonStorageService.downloadEntityByUniqueId(BUCKET_NAME, keyName);
+    }
+    
+    @Delete
+    public void deleteFileOrFolder(Entity entity) {
+        LOG.info("Deleting the entity " + entity.getName() + " in the " + BUCKET_NAME + " in Amazon S3");
+        boolean isDeleted = amazonStorageService.deleteEntityByUniqueId(BUCKET_NAME, 
+                entity.getId().toString());
+        if (!isDeleted) {
+            LOG.warn("Could not delete the entity " + entity.getName() + " in the " + BUCKET_NAME);
+            return;
+        }
+        LOG.info("The entity " + entity.getName() + " was deleted");
     }
 }
