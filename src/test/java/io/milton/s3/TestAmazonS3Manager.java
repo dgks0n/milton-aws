@@ -31,7 +31,7 @@ import org.junit.Test;
 
 public class TestAmazonS3Manager {
 
-    AmazonS3Manager entityManager = null;
+    AmazonS3Manager amazonS3Manager = null;
     
     String bucketName = "milton-s3-demo-" + UUID.randomUUID();
     
@@ -39,19 +39,19 @@ public class TestAmazonS3Manager {
     
     @Before
     public void setUp() {
-        entityManager = new AmazonS3ManagerImpl(region, bucketName);
-        assertFalse(entityManager.isRootBucket());
+        amazonS3Manager = new AmazonS3ManagerImpl(region);
+        assertFalse(amazonS3Manager.isRootBucket(bucketName));
         
-        if(!entityManager.isRootBucket())
-            entityManager.createBucket();
+        if(!amazonS3Manager.isRootBucket(bucketName))
+            amazonS3Manager.createBucket(bucketName);
         
-        assertTrue("Bucket not available: " + bucketName, entityManager.isRootBucket());              
+        assertTrue("Bucket not available: " + bucketName, amazonS3Manager.isRootBucket(bucketName));              
     }
     
     @After
     public void tearDown() {
-        entityManager.deleteBucket();
-        assertFalse("Failed to remove Bucket " + bucketName, entityManager.isRootBucket());
+        amazonS3Manager.deleteBucket(bucketName);
+        assertFalse("Failed to remove Bucket " + bucketName, amazonS3Manager.isRootBucket(bucketName));
     }
     
     @Test
@@ -59,7 +59,7 @@ public class TestAmazonS3Manager {
         String keyNameNotAvailable = "TEST" + File.separator + UUID.randomUUID() + ".txt";
         
         File outputFile = File.createTempFile("not-exist-in-aws", ".txt");
-        boolean actually = entityManager.downloadEntity(keyNameNotAvailable, outputFile);
+        boolean actually = amazonS3Manager.downloadEntity(bucketName, keyNameNotAvailable, outputFile);
         assertFalse(actually);
     }
     
@@ -71,18 +71,19 @@ public class TestAmazonS3Manager {
         String keyName = folderName + File.separator + UUID.randomUUID() + ".txt";
         File outputFile = null;
 
-        entityManager.uploadEntity(keyName, new File(resource.toURI()));
+        amazonS3Manager.uploadEntity(bucketName, keyName, new File(resource.toURI()));
         
         outputFile = File.createTempFile("downloaded-file-aws", ".txt");
-        assertTrue(entityManager.downloadEntity(keyName, outputFile));
+        assertTrue(amazonS3Manager.downloadEntity(bucketName, keyName, outputFile));
         assertTrue("Error downloading file", outputFile.length() > 0);
         
-        entityManager.deleteEntity(keyName);
-        entityManager.deleteEntity(folderName);
+        amazonS3Manager.deleteEntity(bucketName, keyName);
+        amazonS3Manager.deleteEntity(bucketName, folderName);
         
         // Remove temp file
-        if (outputFile.exists())
+        if (outputFile.exists()) {
             outputFile.delete();
+        }
     }
 
 }

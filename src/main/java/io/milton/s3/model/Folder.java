@@ -40,5 +40,4 @@ public class Folder extends Entity {
         Folder folder = new Folder(folderName, this);
         return folder;
     }
-    
 }

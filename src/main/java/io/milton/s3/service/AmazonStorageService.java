@@ -22,30 +22,44 @@ import io.milton.s3.model.Folder;
 import java.io.InputStream;
 import java.util.List;
 
+import com.amazonaws.services.s3.model.Bucket;
+
 public interface AmazonStorageService {
 	
+    /**
+     * Create and name a bucket that stores data. Buckets are the fundamental
+     * container in Amazon S3 for data storage
+     * 
+     * @param bucketName
+     *              - the bucket name
+     */
+    Bucket createBucket(String bucketName);
+    
 	/**
 	 * Remove storage database in Amazon S3
 	 * 
+	 * @param bucketName
+	 *             - the storage database name
 	 */
-	void deleteBucket();
+	void deleteBucket(String storageName);
 	
-    Folder findRootFolder();
+    Folder findRootFolder(String bucketName);
     
-    Entity findEntityByUniqueId(Entity entity);
+    Entity findEntityByUniqueId(String bucketName, Entity entity);
     
-    List<Entity> findEntityByParent(Folder parent);
+    List<Entity> findEntityByParent(String bucketName, Folder parent);
     
-    boolean putEntity(Entity entity, InputStream inputStream);
+    boolean putEntity(String bucketName, Entity entity, InputStream inputStream);
     
-    void copyEntityByUniqueId(Entity entity, Folder newParent, String newBucketName, String newName);
+    void copyEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 
+            String newBucketName, String newName);
     
-    boolean updateEntityByUniqueId(Entity entity, Folder newParent, String newEntityName, 
-    		boolean isRenaming);
+    boolean updateEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 
+            String newEntityName, boolean isRenamingAction);
     
-    boolean deleteEntityByUniqueId(String uniqueId);
+    boolean deleteEntityByUniqueId(String bucketName, String uniqueId);
     
-    boolean downloadEntityByUniqueId(String keyNotAvailable, java.io.File destinationFile);
+    boolean downloadEntityByUniqueId(String bucketName, String keyNotAvailable, java.io.File destinationFile);
     
-    InputStream downloadEntityByUniqueId(String keyName);
+    InputStream downloadEntityByUniqueId(String bucketName, String keyName);
 }

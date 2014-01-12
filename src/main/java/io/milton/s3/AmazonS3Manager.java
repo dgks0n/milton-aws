@@ -26,25 +26,53 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 public interface AmazonS3Manager {
 
-    boolean isRootBucket();
-    
     /**
-     * Create and name a bucket that stores data. Buckets are the fundamental
-     * container in Amazon S3 for data storage
-     */
-    Bucket createBucket();
-    
-    /**
-     * Delete a bucket that stored in Amazon S3 for the given bucket name
+     * Checks if the specified bucket exists. Amazon S3 buckets are named in a
+     * global namespace; use this method to determine if a specified bucket name
+     * already exists, and therefore can't be used to create a new bucket.
      * 
+     * @param bucketName
+     *            - The name of the bucket to check
+     * @return The value true if the specified bucket exists in Amazon S3; the
+     *         value false if there is no bucket in Amazon S3 with that name
      */
-    boolean deleteBucket();
+    boolean isRootBucket(String bucketName);
     
     /**
-     * This gets a list of Buckets that you own. This also prints out the bucket
-     * name and creation date of each bucket.
+     * Creates a new Amazon S3 bucket with the specified name in the default
+     * (US) region, Region.US_Standard
      * 
-     * @return a list of buckets
+     * Every object stored in Amazon S3 is contained within a bucket. Buckets
+     * partition the namespace of objects stored in Amazon S3 at the top level.
+     * Within a bucket, any name can be used for objects. However, bucket names
+     * must be unique across all of Amazon S3.
+     * 
+     * @param bucketName
+     *            - The name of the bucket to create. All buckets in Amazon S3
+     *            share a single namespace; ensure the bucket is given a unique
+     *            name
+     * @return The newly created bucket            
+     */
+    Bucket createBucket(String bucketName);
+    
+    /**
+     * Deletes the specified bucket. All objects (and all object versions, if
+     * versioning was ever enabled) in the bucket must be deleted before the
+     * bucket itself can be deleted
+     * 
+     * @param bucketName
+     *            - The name of the bucket to delete
+     */
+    boolean deleteBucket(String bucketName);
+    
+    /**
+     * Returns a list of all Amazon S3 buckets that the authenticated sender of
+     * the request owns. Users must authenticate with a valid AWS Access Key ID
+     * that is registered with Amazon S3. Anonymous requests cannot list
+     * buckets, and users cannot list buckets that they did not create.
+     * 
+     * @return A list of all of the Amazon S3 buckets owned by the authenticated
+     *         sender of the request
      */
     List<Bucket> findBuckets();
     
@@ -54,56 +82,121 @@ public interface AmazonS3Manager {
      * data. Each object is stored and retrieved using a unique
      * developer-assigned key.
      * 
+     * @param bucketName
+     *            - The name of an existing bucket, to which you have
+     *            Permission.Write permission
      * @param keyName
+     *            - The key under which to store the specified file
      * @param file
+     *            - The file containing the data to be uploaded to Amazon S3
      */
-    void uploadEntity(String keyName, File file);
+    void uploadEntity(String bucketName, String keyName, File file);
     
-    void uploadEntity(String keyName, InputStream fileStream);
+    /**
+     * Uploads the specified input stream and object metadata to Amazon S3 under
+     * the specified bucket and key name
+     * 
+     * @param bucketName
+     *            - The name of an existing bucket, to which you have
+     *            Permission.Write permission
+     * @param keyName
+     *            - The key under which to store the specified file
+     * @param inputStream
+     *            - The input stream containing the data to be uploaded to
+     *            Amazon S3
+     */
+    void uploadEntity(String bucketName, String keyName, InputStream inputStream);
 
-    void deleteEntity(String keyName);
+    /**
+     * Deletes the specified object in the specified bucket. Once deleted, the
+     * object can only be restored if versioning was enabled when the object was
+     * deleted. If attempting to delete an object that does not exist, Amazon S3
+     * returns a success message instead of an error message.
+     * 
+     * @param bucketName
+     *            - The name of the Amazon S3 bucket containing the object to
+     *            delete
+     * @param keyName
+     *            - The key of the object to delete
+     */
+    void deleteEntity(String bucketName, String keyName);
     
     /**
      * Deletes multiple objects in a single bucket from S3
+     * 
+     * @param bucketName
+     *              - The name of an existing bucket
      */
-    void deleteEntities();
+    void deleteEntities(String bucketName);
     
-    void publicEntity(String keyName);
+    void publicEntity(String bucketName, String keyName);
     
     /**
      * Copies a source object to a new destination in Amazon S3. You need to
      * provide the request information, such as source bucket name, source key
      * name, destination bucket name, and destination key.
      * 
-     * @param keyName
-     * @param targetBucketName
-     * @param targetKeyName
+     * @param sourceBucketName
+     *            - The name of the bucket containing the source object to copy
+     * @param sourceKeyName
+     *            - The key in the source bucket under which the source object
+     *            is stored
+     * @param destinationBucketName
+     *            - The name of the bucket in which the new object will be
+     *            created. This can be the same name as the source bucket's
+     * @param destinationKeyName
+     *            - The key in the destination bucket under which the new object
+     *            will be created
      */
-    void copyEntity(String keyName, String targetBucketName, String targetKeyName);
+    boolean copyEntity(String sourceBucketName, String sourceKeyName, String destinationBucketName, 
+            String destinationKeyName);
 
-    boolean isPublicEntity(String keyName);
+    boolean isPublicEntity(String bucketName, String keyName);
 
-    boolean downloadEntity(String keyNotAvailable, File destinationFile);
+    boolean downloadEntity(String bucketName, String keyNotAvailable, File destinationFile);
 
-    InputStream downloadEntity(String keyName);
+    /**
+     * Gets the object stored in Amazon S3 under the specified bucket and key.
+     * 
+     * Be extremely careful when using this method; the returned Amazon S3
+     * object contains a direct stream of data from the HTTP connection. The
+     * underlying HTTP connection cannot be closed until the user finishes
+     * reading the data and closes the stream. Therefore:
+     * 
+     *          - Use the data from the input stream in Amazon S3 object as soon as possible
+     *          - Close the input stream in Amazon S3 object as soon as possible
+     * 
+     * @param bucketName
+     *              - The name of the bucket containing the desired object
+     * @param keyName
+     *              - The key under which the desired object is stored
+     * @return The object stored in Amazon S3 in the specified bucket and key
+     */
+    InputStream downloadEntity(String bucketName, String keyName);
 
-    String getResourceUrl(String keyName);
+    String getResourceUrl(String bucketName, String keyName);
     
-    S3Object findEntityByUniqueKey(String keyName);
+    S3Object findEntityByUniqueKey(String bucketName, String keyName);
     
     /**
 	 * Returns a list of summary information about the objects in the specified
 	 * buckets.
 	 * 
-	 * @return
+	 * @param bucketName
+     *              - The name of an existing bucket
+     *              
+	 * @return a list of S3 objects
 	 */
-    List<S3ObjectSummary> findEntityByBucket();
+    List<S3ObjectSummary> findEntityByBucket(String bucketName);
     
     /**
 	 * This method to list object keys in a bucket for the given prefix
 	 * 
+	 * @param bucketName
+     *              - The name of an existing bucket
 	 * @param prefixKey
-	 * @return
+	 * 
+	 * @return a list of S3 objects
 	 */
-    List<S3ObjectSummary> findEntityByPrefixKey(String prefixKey);
+    List<S3ObjectSummary> findEntityByPrefixKey(String bucketName, String prefixKey);
 }

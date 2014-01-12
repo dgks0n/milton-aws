@@ -17,33 +17,44 @@
 package io.milton.s3;
 
 import io.milton.s3.model.Entity;
-import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
 
 import java.util.List;
 
 public interface DynamoDBManager {
 
-    boolean isExistEntity(String entityName, Folder parent);
-    
-    boolean putEntity(Entity entity);
-    
-    Folder findRootFolder();
-    
-    Entity findEntityByUniqueId(Entity entity);
-    
-    Entity findEntityByUniqueId(String uniqueId, Folder parent);
-    
-    List<Entity> findEntityByParent(Folder parent);
-    
-    boolean updateEntityByUniqueId(File file, Folder newParent, String newEntityName, 
-    		boolean isRenaming);
-    
-    boolean deleteEntityByUniqueId(String uniqueId);
+    /**
+     * Create storage database in Amazon DynamoDB for the given table name
+     * 
+     * @param repository
+     *              - the storage database name
+     */
+    void createTable(String repository);
     
     /**
-	 * Delete storage database in Amazon DynamoDB for the given table name
-	 * 
-	 */
-    void deleteTable();
+     * Delete storage database in Amazon DynamoDB for the given table name
+     * 
+     * @param repository
+     *              - the storage database name
+     */
+    void deleteTable(String repository);
+    
+    boolean isExistEntity(String repository, String entityName, Folder parent);
+    
+    boolean putEntity(String repository, Entity entity);
+    
+    Folder findRootFolder(String repository);
+    
+    Entity findEntityByUniqueId(String repository, Entity entity);
+    
+    Entity findEntityByUniqueId(String repository, String uniqueId, Folder parent);
+    
+    List<Entity> findEntityByParent(String repository, Folder parent);
+    
+    List<Entity> findEntityByParentAndType(String repository, Folder parent, boolean isDirectory);
+    
+    boolean updateEntityByUniqueId(String repository, Entity entity, Folder newParent, 
+            String newEntityName, boolean isRenamingAction);
+    
+    boolean deleteEntityByUniqueId(String repository, String uniqueId);
 }

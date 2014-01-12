@@ -128,6 +128,10 @@ public class Entity {
 
 	@Override
 	public boolean equals(Object obj) {
+	    if (!(obj instanceof Entity)) {
+	        return false;
+	    }
+	    
 		Entity other = (Entity) obj;
 		if (id == null) {
 			if (other.id != null) {

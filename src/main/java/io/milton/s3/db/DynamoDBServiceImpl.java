@@ -16,7 +16,6 @@
  */
 package io.milton.s3.db;
 
-import io.milton.s3.db.mapper.DynamoDBEntityMapper;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
@@ -38,7 +37,6 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
-import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
 import com.amazonaws.services.dynamodbv2.model.Condition;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
@@ -78,8 +76,6 @@ public class DynamoDBServiceImpl implements DynamoDBService {
      */
     private final AmazonDynamoDBClient dynamoDBClient;
     
-    private final String repository;
-    
     /**
      * The only information needed to create a client are security credentials
      * consisting of the AWS Access Key ID and Secret Access Key. All other
@@ -90,16 +86,15 @@ public class DynamoDBServiceImpl implements DynamoDBService {
      * @see com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider
      * @see com.amazonaws.regions.Region
      */
-    public DynamoDBServiceImpl(Region region, String repository) {
-        this.repository = repository;
-        
+    public DynamoDBServiceImpl(Region region) {
         LOG.info("Initialize Amazon DynamoDB environment...!!!");
+        
         dynamoDBClient = new AmazonDynamoDBClient(new ClasspathPropertiesFileCredentialsProvider());
         dynamoDBClient.setRegion(region);
     }
     
     @Override
-    public void createTable() {
+    public void createTable(String repository) {
         List<AttributeDefinition> attributeDefinitions= new ArrayList<AttributeDefinition>();
         attributeDefinitions.add(new AttributeDefinition().withAttributeName(AttributeKey.UUID)
         		.withAttributeType(ScalarAttributeType.S));
@@ -123,97 +118,29 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             LOG.info("Created table description: " + createdTableDescription);
             
             // Wait for it to become active
-            waitForTableAvailable();
+            waitForTableAvailable(repository);
+            // 
+            describeTable(repository);
         } catch (ResourceInUseException rie) {
             LOG.warn("Table " + repository + " already exists");
         }
     }
 
     @Override
-    public void waitForTableAvailable() {
-        LOG.info("Waiting for table " + repository + " to become active...");
-        
-        long startTime = System.currentTimeMillis();
-        long endTime = startTime + (10 * 60 * 1000);
-        while (System.currentTimeMillis() < endTime) {
-            DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
-            
-            // Display current status of table
-            String tableStatus = tableDescription.getTableStatus();
-            LOG.info("Current state for table " + repository + ": " + tableStatus);
-            if (tableStatus.equals(TableStatus.ACTIVE.toString()))
-                return;
-            
-            try {
-                Thread.sleep(1000 * 20);
-            } catch (Exception ex) {
-                LOG.warn(ex.getMessage());
-            }
-        }
-        
-        throw new RuntimeException("Table " + repository + " never went active");
-    }
-
-    @Override
-    public TableDescription describeTable() {
-    	try {
-    		DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
-            if (tableDescription != null) {
-            	LOG.info("Table description for " + repository + ": " + tableDescription);
-            }
-            return tableDescription;
-		} catch (ResourceNotFoundException rnfe) {
-			LOG.warn(rnfe.getMessage());
-		}
-    	return null;
-    }
-
-    @Override
-    public void deleteTable() {
+    public void deleteTable(String repository) {
         DeleteTableRequest deleteTableRequest = new DeleteTableRequest().withTableName(repository);
         DeleteTableResult deleteTableResult = dynamoDBClient.deleteTable(deleteTableRequest);
         if (deleteTableRequest != null) {
         	LOG.info("Delete description for " + repository + ": " + deleteTableResult);
         }
         
-        waitForTableDeleted();
+        waitForTableDeleted(repository);
     }
 
     @Override
-    public void waitForTableDeleted() {
-        LOG.info("Waiting for table " + repository + " while status deleting...");
-
-        long startTime = System.currentTimeMillis();
-        long endTime = startTime + (10 * 60 * 1000);
-        while (System.currentTimeMillis() < endTime) {
-            try {
-                DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
-                TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest)
-                		.getTable();
-                String tableStatus = tableDescription.getTableStatus();
-                LOG.info("Current state for table " + repository + ": " + tableStatus);
-                if (tableStatus.equals(TableStatus.ACTIVE.toString()))
-                    return;
-            } catch (ResourceNotFoundException rne) {
-                LOG.warn("Table " + repository + " is not found. It was deleted.");
-                return;
-            }
-            
-            try {
-                Thread.sleep(1000 * 20);
-            } catch (Exception ex) {
-                LOG.warn(ex.getMessage());
-            }
-        }
-        throw new RuntimeException("Table " + repository + " was never deleted");
-    }
-
-    @Override
-    public boolean isTableExist() {
+    public boolean isTableExist(String repository) {
         boolean isTableExist = false;
-        if (describeTable() != null)
+        if (describeTable(repository) != null)
             isTableExist = true;
         
         return isTableExist;
@@ -259,18 +186,18 @@ public class DynamoDBServiceImpl implements DynamoDBService {
      * @param item
      */
     @Override
-    public PutItemResult putItem(Map<String, AttributeValue> item) {
+    public PutItemResult putItem(String repository, Map<String, AttributeValue> item) {
     	if (item == null || item.isEmpty()) {
     		LOG.warn("Does not support store null or empty entity in Amazon S3 and DynamoDB");
     		return null;
     	}
     	
+    	LOG.info("Putted item " + item.toString() + " into " + repository);
+    	
         try {
             PutItemRequest putItemRequest = new PutItemRequest(repository, item);
             PutItemResult putItemResult = dynamoDBClient.putItem(putItemRequest);
-            
-			LOG.info("Putted item " + item.toString() + " into " + repository
-					+ "; Putted status: " + putItemResult);
+			LOG.info("Putted status: " + putItemResult);
             return putItemResult;
         } catch (Exception ex) {
             LOG.error("Failed to put given item into the " + repository, ex);
@@ -279,10 +206,14 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     }
     
     @Override
-    public Map<String, AttributeValue> getItem(HashMap<String, AttributeValue> primaryKey) {
+    public Map<String, AttributeValue> getItem(String repository, HashMap<String, AttributeValue> primaryKey) {
+        LOG.info("Retrieves a set of Attributes for an item that matches the primary key "
+                + primaryKey + " from the table " + repository);
+        
     	try {
     		GetItemRequest getItemRequest = new GetItemRequest().withTableName(repository)
-    				.withKey(primaryKey);
+    				.withKey(primaryKey)
+    				.withConsistentRead(true);
             GetItemResult getItemResult = dynamoDBClient.getItem(getItemRequest);
             Map<String, AttributeValue> item = getItemResult.getItem();
             if (item == null || item.isEmpty()) {
@@ -291,9 +222,10 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             	return Collections.emptyMap();
             }
             
-			LOG.info("Getting result from " + repository + ": " + item
-					+ "; Returning " + item.size() + " items");
+			LOG.info("Listing collection from " + repository + ": " + (item.size() / 8) + " items");
             return item;
+    	} catch (ResourceNotFoundException rnfe) {
+    	    LOG.error("Requested resource " + repository + " not found ", rnfe);
 		} catch (Exception ex) {
 			LOG.error("Failed to get item into the " + repository, ex);
 		}
@@ -302,7 +234,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     }
     
     @Override
-    public List<Map<String, AttributeValue>> getItem(Map<String, Condition> conditions) {
+    public List<Map<String, AttributeValue>> getItem(String repository, Map<String, Condition> conditions) {
         ScanRequest scanRequest = new ScanRequest(repository).withScanFilter(conditions);
         ScanResult scanResult = dynamoDBClient.scan(scanRequest);
         int count = scanResult.getCount();
@@ -311,12 +243,12 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         }
         
 		LOG.info("Successful by getting items from " + repository
-				+ " based on conditions: " + conditions.toString() + "; Returning " + count + " of items");
+				+ " based on conditions: " + conditions.toString() + ": " + count + " items");
         return scanResult.getItems();
     }
     
     @Override
-    public UpdateItemResult updateItem(HashMap<String, AttributeValue> primaryKey, Map<String, 
+    public UpdateItemResult updateItem(String repository, HashMap<String, AttributeValue> primaryKey, Map<String, 
     		AttributeValueUpdate> updateItems) {
         Map<String, AttributeValueUpdate> attributeValueUpdates = new HashMap<String, AttributeValueUpdate>();
         attributeValueUpdates.putAll(updateItems);
@@ -327,13 +259,12 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             .withAttributeUpdates(updateItems);
         
         UpdateItemResult updateItemResult = dynamoDBClient.updateItem(updateItemRequest);
-		LOG.info("Successful by updating item from " + repository
-				+ "; Updated result: " + updateItemResult); 
+		LOG.info("Successful by updating item from " + repository + ": " + updateItemResult); 
         return updateItemResult;
     }
 
     @Override
-    public DeleteItemResult deleteItem(HashMap<String, AttributeValue> primaryKey) {
+    public DeleteItemResult deleteItem(String repository, HashMap<String, AttributeValue> primaryKey) {
         DeleteItemRequest deleteItemRequest = new DeleteItemRequest()
             .withTableName(repository)
             .withKey(primaryKey);
@@ -342,35 +273,71 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         LOG.info("Successful by deleting item in " + repository);
         return deleteItemResult;
     }
-    
-    @Override
-    public Map<String, AttributeValue> getItem(List<Map<String, Condition>> conditions) {
-        // TODO Auto-generated method stub
-        return null;
-    }
 
-    @Override
-    public List<Entity> getChildren(Folder parent, Map<String, Condition> conditions) {
-    	List<Map<String, AttributeValue>> items = getItem(conditions);
-        return DynamoDBEntityMapper.convertItemsToEntities(parent, items);
-    }
-    
-    @Override
-	public Folder getRootFolder() {
-        Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-                .withAttributeValueList(new AttributeValue().withS(AttributeKey.NOT_EXIST));
+    private void waitForTableAvailable(String repository) {
+        LOG.info("Waiting for table " + repository + " to become active...");
+        
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime + (10 * 60 * 1000);
+        while (System.currentTimeMillis() < endTime) {
+            DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
+            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
             
-        Map<String, Condition> conditions = new HashMap<String, Condition>();
-        conditions.put(AttributeKey.PARENT_UUID, condition);
+            // Display current status of table
+            String tableStatus = tableDescription.getTableStatus();
+            LOG.info("Current state for table " + repository + ": " + tableStatus);
+            if (tableStatus.equals(TableStatus.ACTIVE.toString()))
+                return;
             
-        List<Entity> entities = getChildren(null, conditions);
-        if (entities == null || entities.isEmpty()) {
-            LOG.warn("Could not find item for the given "
-                    + conditions.toString() + " from " + repository);
-            return null;
+            try {
+                Thread.sleep(1000 * 20);
+            } catch (Exception ex) {
+                LOG.warn(ex.getMessage());
+            }
         }
         
-        return (Folder) entities.get(0);
-	}
+        throw new RuntimeException("Table " + repository + " never went active");
+    }
+
+    private TableDescription describeTable(String repository) {
+        try {
+            DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
+            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
+            if (tableDescription != null) {
+                LOG.info("Table description for " + repository + ": " + tableDescription);
+            }
+            return tableDescription;
+        } catch (ResourceNotFoundException rnfe) {
+            LOG.warn(rnfe.getMessage());
+        }
+        return null;
+    }
     
+    private void waitForTableDeleted(String repository) {
+        LOG.info("Waiting for table " + repository + " while status deleting...");
+
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime + (10 * 60 * 1000);
+        while (System.currentTimeMillis() < endTime) {
+            try {
+                DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(repository);
+                TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest)
+                        .getTable();
+                String tableStatus = tableDescription.getTableStatus();
+                LOG.info("Current state for table " + repository + ": " + tableStatus);
+                if (tableStatus.equals(TableStatus.ACTIVE.toString()))
+                    return;
+            } catch (ResourceNotFoundException rne) {
+                LOG.warn("Table " + repository + " is not found. It was deleted.");
+                return;
+            }
+            
+            try {
+                Thread.sleep(1000 * 20);
+            } catch (Exception ex) {
+                LOG.warn(ex.getMessage());
+            }
+        }
+        throw new RuntimeException("Table " + repository + " was never deleted");
+    }
 }

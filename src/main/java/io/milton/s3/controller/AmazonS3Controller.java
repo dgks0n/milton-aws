@@ -41,34 +41,27 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
+
 @ResourceController
 public class AmazonS3Controller {
 
     private static final Logger LOG = LoggerFactory.getLogger(AmazonS3Controller.class);
     
-    private static final String AMAZON_STORAGE_NAME = "milton-s3-demo";
+    private static final String BUCKET_NAME = "milton-s3-demo";
     
     private final AmazonStorageService amazonStorageService;
-    
-    /**
-	 * Initialize Amazon DynamoDB environment for the default table.
-	 * 
-	 * @throws Exception
-	 */
-    public AmazonS3Controller() throws Exception {
-        this(AMAZON_STORAGE_NAME);
-    }
     
     /**
 	 * Initialize Amazon Simple Storage Service environment for the given
 	 * repository
 	 * 
-	 * @param repository
-	 *            - the table name
-	 * @throws Exception
 	 */
-    public AmazonS3Controller(String repository) throws Exception {
-    	amazonStorageService = new AmazonStorageServiceImpl(repository);
+    public AmazonS3Controller() throws Exception {
+    	amazonStorageService = new AmazonStorageServiceImpl(Region.getRegion(Regions.US_WEST_2));
+    	// Create storage database name
+    	amazonStorageService.createBucket(BUCKET_NAME);
     }
     
     /**
@@ -81,8 +74,8 @@ public class AmazonS3Controller {
     @Root
     public Folder getRootFolder() throws Exception {
 		LOG.info("Getting root folder [/] and create if it is not exist in the table "
-				+ AMAZON_STORAGE_NAME);
-        return amazonStorageService.findRootFolder();
+				+ BUCKET_NAME);
+        return amazonStorageService.findRootFolder(BUCKET_NAME);
     }
     
     @ChildrenOf
@@ -104,8 +97,8 @@ public class AmazonS3Controller {
         }
         
         // Get all entities form Amazon DynamoDB
-        List<Entity> children = amazonStorageService.findEntityByParent(parent);
-        LOG.info("Getting childrens of " + parent.getName() + "; Returning "
+        List<Entity> children = amazonStorageService.findEntityByParent(BUCKET_NAME, parent);
+        LOG.info("Listing collection of folder " + parent.getName() + ": "
                 + children.size() + " items");
         return children;
     }
@@ -116,7 +109,7 @@ public class AmazonS3Controller {
         
         // Create new folder for the given name & store in the Amazon DynamoDB
         Folder newFolder = (Folder) parent.addFolder(folderName);
-        if (amazonStorageService.putEntity(newFolder, null)) {
+        if (amazonStorageService.putEntity(BUCKET_NAME, newFolder, null)) {
         	LOG.info("Create Successful folder " + folderName + " in " + parent.getName());
         }
         return newFolder;
@@ -139,7 +132,7 @@ public class AmazonS3Controller {
         
         // Create a file and store into Amazon Simple Storage Service
         File newFile = parent.addFile(newName);
-        boolean isSuccess = amazonStorageService.putEntity(newFile, inputStream);
+        boolean isSuccess = amazonStorageService.putEntity(BUCKET_NAME, newFile, inputStream);
         if (isSuccess) {
         	LOG.warn("Create Successful file " + newName + " under folder " + parent);
         }
@@ -147,27 +140,31 @@ public class AmazonS3Controller {
     }
     
     @Move
-    public void renameOrMoveFile(File file, Folder newParent, String newName) {
-        LOG.info("Moving or renaming file " + file.getName() + " from folder "
-                + file.getParent().getName() + " to " + newName + " in folder "
-                + newParent.getName());
-		
-        boolean isRenaming = true;
-        if (file.getParent() != newParent) {
-            file.setParent(newParent);
-            // Action is moving file
-            isRenaming = false;
+    public void renameOrMoveFile(Entity entity, Folder newParent, String newName) {
+        boolean isRenamingAction = true;
+        if (!entity.getParent().equals(newParent)) {
+            isRenamingAction = false;
+            // Current action is moving file (not renaming)
+            LOG.info("Moving file " + entity.getName() + " from folder "
+                    + entity.getParent().getName() + " to " + newName + " in folder " + newParent.getName());
+        } else {
+            LOG.info("Renaming file " + entity.getName() + " to " + newName
+                    + " in folder " + entity.getParent().getName());
         }
-        amazonStorageService.updateEntityByUniqueId(file, newParent, newName, isRenaming);
-        LOG.info("Succesful by updating or moving file " + file.getName()
-                + " to " + newName + " in " + newParent.getName());
+        boolean isSuccess = amazonStorageService.updateEntityByUniqueId(BUCKET_NAME, entity, newParent, 
+                newName, isRenamingAction);
+        if (isSuccess) {
+            LOG.info("Succesful by updating or moving file " + entity.getName() + " to " 
+                    + newName + " in " + newParent.getName());
+        }
     }
     
     @Copy
-    public void copyFile(File file, Folder newParent, String newName) {
-		LOG.info("Copying file " + file.getName() + " to " + newName + " in "
-				+ newParent.getName());
-		amazonStorageService.copyEntityByUniqueId(file, newParent, null, newName);
+    public void copyFile(Entity entity, Folder newParent, String newName) {
+		LOG.info("Copying file " + entity.getName() + " from folder " + entity.getParent().getName() 
+		        + " to folder " + newParent.getName());
+		
+		amazonStorageService.copyEntityByUniqueId(BUCKET_NAME, entity, newParent, null, newName);
     }
     
     @ContentLength
@@ -186,6 +183,6 @@ public class AmazonS3Controller {
 				+ java.io.File.separatorChar + file.getId().toString();
 		LOG.info("Key name: " + keyName);
         LOG.info("Downloading file " + file.toString() + " under folder " + file.getParent().getName());
-    	return amazonStorageService.downloadEntityByUniqueId(keyName);
+    	return amazonStorageService.downloadEntityByUniqueId(BUCKET_NAME, keyName);
     }
 }
