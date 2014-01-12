@@ -115,7 +115,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
         
         try {
             CreateTableResult createdTableDescription = dynamoDBClient.createTable(createTableRequest);
-            LOG.info("Created table description: " + createdTableDescription);
+            LOG.info("Creating table description: " + createdTableDescription);
             
             // Wait for it to become active
             waitForTableAvailable(repository);

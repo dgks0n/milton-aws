@@ -1,0 +1,9 @@
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<title>Home Page</title>
+<link rel="template" href="theme/page" />
+</head>
+<body>
+<h2>Welcome to your new site!</h2>
+<p>Login with the menu in the navigation above, then you will be able to start editing using the edit page buttons to the right</p>
+</body>
+</html>
