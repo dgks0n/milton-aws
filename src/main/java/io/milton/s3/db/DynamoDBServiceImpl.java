@@ -31,6 +31,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
@@ -200,9 +202,11 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             PutItemResult putItemResult = dynamoDBClient.putItem(putItemRequest);
 			LOG.info("Putted status: " + putItemResult);
             return putItemResult;
-        } catch (Exception ex) {
-            LOG.error("Failed to put given item into the " + tableName, ex);
-        }
+        } catch (AmazonServiceException ase) {
+            LOG.error("Failed to put given item into the " + tableName, ase);
+        } catch (AmazonClientException ace) {
+        	LOG.error("Failed to put given item into the " + tableName, ace);
+		}
         return null;
     }
     

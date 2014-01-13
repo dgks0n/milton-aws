@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.util.List;
 
 import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
@@ -93,19 +94,24 @@ public interface AmazonS3Manager {
     void uploadEntity(String bucketName, String keyName, File file);
     
     /**
-     * Uploads the specified input stream and object metadata to Amazon S3 under
-     * the specified bucket and key name
-     * 
-     * @param bucketName
-     *            - The name of an existing bucket, to which you have
-     *            Permission.Write permission
-     * @param keyName
-     *            - The key under which to store the specified file
-     * @param inputStream
-     *            - The input stream containing the data to be uploaded to
-     *            Amazon S3
-     */
-    void uploadEntity(String bucketName, String keyName, InputStream inputStream);
+	 * Uploads the specified input stream and object metadata to Amazon S3 under
+	 * the specified bucket and key name
+	 * 
+	 * @param bucketName
+	 *            - The name of an existing bucket, to which you have
+	 *            Permission.Write permission
+	 * @param keyName
+	 *            - The key under which to store the specified file
+	 * @param inputStream
+	 *            - The input stream containing the data to be uploaded to
+	 *            Amazon S3
+	 * @param metadata
+	 *            - Additional metadata instructing Amazon S3 how to handle the
+	 *            uploaded data (e.g. custom user metadata, hooks for specifying
+	 *            content type, etc.).
+	 * @return TRUE if successful, otherwise FASLE
+	 */
+    boolean uploadEntity(String bucketName, String keyName, InputStream inputStream, ObjectMetadata metadata);
 
     /**
      * Deletes the specified object in the specified bucket. Once deleted, the

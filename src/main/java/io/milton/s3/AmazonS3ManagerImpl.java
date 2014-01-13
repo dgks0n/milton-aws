@@ -47,6 +47,7 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.Permission;
+import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
@@ -143,7 +144,7 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
 
     @Override
     public void uploadEntity(String bucketName, String keyName, File file) {
-        LOG.info("Uploads the specified file " + file.toString()
+        LOG.info("Uploads the specified file " + file
                 + " to Amazon S3 under the specified bucket " + bucketName
                 + " and key name " + keyName);
         
@@ -157,19 +158,24 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     }
 
     @Override
-    public void uploadEntity(String bucketName, String keyName, InputStream inputStream) {
+    public boolean uploadEntity(String bucketName, String keyName, InputStream inputStream, ObjectMetadata metadata) {
         LOG.info("Uploads the specified input stream "
-                + inputStream.toString()
+                + inputStream
                 + " and object metadata to Amazon S3 under the specified bucket "
                 + bucketName + " and key name " + keyName);
 
         try {
-        	amazonS3Client.putObject(bucketName, keyName, inputStream, null);
+        	PutObjectResult putObjectResult = amazonS3Client.putObject(bucketName, keyName, inputStream, metadata);
+        	if (putObjectResult != null) {
+        		LOG.info("Upload the specified input stream " + inputStream + " state: " + putObjectResult);
+        		return true;
+        	}
         } catch (AmazonServiceException ase) {
             LOG.warn(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
             LOG.warn(ace.getMessage(), ace);
         }
+        return false;
     }
 
     @Override
@@ -288,7 +294,7 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     public boolean downloadEntity(String bucketName, String keyNotAvailable, File destinationFile) {
         LOG.info("Gets the object metadata for the object stored in Amazon S3 under the specified bucket "
                 + bucketName + " and key " + keyNotAvailable
-                + ", and saves the object contents to the specified file " + destinationFile.toString());
+                + ", and saves the object contents to the specified file " + destinationFile);
         try {
             ObjectMetadata objectMetadata = amazonS3Client.getObject(new GetObjectRequest(bucketName, 
                     keyNotAvailable), destinationFile);
@@ -296,9 +302,9 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
                 return true;
             }
         } catch (AmazonServiceException ase) {
-            LOG.warn(ase.getMessage(), ase);
+        	throw new RuntimeException(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
-            LOG.warn(ace.getMessage(), ace);
+        	throw new RuntimeException(ace.getMessage(), ace);
         }
         return false;
     }
@@ -313,9 +319,9 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
         	    return s3Object.getObjectContent();
         	}
         } catch (AmazonServiceException ase) {
-            LOG.warn(ase.getMessage(), ase);
+            throw new RuntimeException(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
-            LOG.warn(ace.getMessage(), ace);
+        	throw new RuntimeException(ace.getMessage(), ace);
         }
         return null;
     }

@@ -37,6 +37,7 @@ import io.milton.s3.model.File;
 import io.milton.s3.model.Folder;
 import io.milton.s3.service.AmazonStorageService;
 import io.milton.s3.service.AmazonStorageServiceImpl;
+import io.milton.s3.util.DateUtils;
 
 import java.io.InputStream;
 import java.text.ParseException;
@@ -46,6 +47,7 @@ import java.util.List;
 
 import javax.activation.MimetypesFileTypeMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +61,8 @@ public class AmazonS3Controller {
     
     private static final String BUCKET_NAME = "milton-s3-demo";
     
+    private final Region region = Region.getRegion(Regions.US_WEST_2);
+    
     private final AmazonStorageService amazonStorageService;
     
     /**
@@ -67,8 +71,7 @@ public class AmazonS3Controller {
 	 * 
 	 */
     public AmazonS3Controller() throws Exception {
-    	amazonStorageService = new AmazonStorageServiceImpl(Region.getRegion(Regions.US_WEST_2));
-    	// Create storage database name
+    	amazonStorageService = new AmazonStorageServiceImpl(region);
     	amazonStorageService.createBucket(BUCKET_NAME);
     }
     
@@ -124,7 +127,7 @@ public class AmazonS3Controller {
     }
     
     @Name
-    public String getResource(Entity entity) {
+    public String getResourceName(Entity entity) {
         return entity.getName();
     }
     
@@ -134,17 +137,23 @@ public class AmazonS3Controller {
     }
     
     @PutChild
-    public File createFile(Folder parent, String newName, InputStream inputStream) {
+    public File createFile(Folder parent, String newName, InputStream inputStream, Long contentLength, 
+    		String contentType) {
 		LOG.info("Creating file " + inputStream.toString() + " with name "
 				+ newName + " in the folder " + parent.getName());
         
         // Create a file and store into Amazon Simple Storage Service
         File newFile = parent.addFile(newName);
-        
-        // Detect content type of input stream
-        String contentType = new MimetypesFileTypeMap(inputStream).getContentType(newName);
+        newFile.setSize(contentLength);
+        // Get default content type if cannot get via milton
+        if (StringUtils.isEmpty(contentType)) {
+        	contentType = new MimetypesFileTypeMap(inputStream).getContentType(newName);
+        }
         newFile.setContentType(contentType);
-        LOG.info("Content type of file " + newName + " is " + contentType);
+        
+		LOG.info("Created new file " + newName + " [name=" + newName
+				+ ", contentLength=" + contentLength + ", contentType="
+				+ contentType + "]");
         boolean isSuccess = amazonStorageService.putEntity(BUCKET_NAME, newFile, inputStream);
         if (isSuccess) {
         	LOG.warn("Create Successful file " + newName + " under folder " + parent);
@@ -153,7 +162,7 @@ public class AmazonS3Controller {
     }
     
     @Move
-    public void renameOrMoveFile(Entity entity, Folder newParent, String newName) {
+    public void renameOrMoveEntity(Entity entity, Folder newParent, String newName) {
         boolean isRenamingAction = true;
         if (!entity.getParent().equals(newParent)) {
             isRenamingAction = false;
@@ -181,45 +190,58 @@ public class AmazonS3Controller {
     }
     
     @ContentLength
-    public Long rootContentLength() {
+    public Long getContentLength() {
         return 0L;
     }
     
     @ContentLength
-    public Long folderContentLength(Entity entity) {
+    public Long getContentLength(Entity entity) {
+    	long contentLength = 0L;
         if (entity instanceof Folder) {
             LOG.warn("Could not get content length of folder " + entity.getName());
-            return 0L;
+            return contentLength;
         }
         
-        return ((File) entity).getSize();
+        contentLength = ((File) entity).getSize();
+        LOG.info("Getting the content length for the source object " + entity.getName()
+        		+ ": " + contentLength);
+        return contentLength;
     }
     
     @ContentType
     public String getContentType(Entity entity) {
+    	String contentType = "";
         if (entity instanceof File) {
-            return ((File) entity).getContentType();
+        	contentType = ((File) entity).getContentType();
+        	LOG.info("Getting the content type for the source object " + entity.getName()
+        			+ ": " + contentType);
+            return contentType;
         }
-        return "";
+        return contentType;
     }
     
     @CreatedDate
     public Date getCreatedDate(Entity entity) {
+    	Date createdDate = entity.getCreatedDate();
         LOG.info("Getting the created date for the source object "
-                + entity.getName());
-        return entity.getCreatedDate();
+                + entity.getName() + ": " + DateUtils.dateToString(createdDate));
+        return createdDate;
     }
     
     @ModifiedDate
     public Date getModifiedDate(Entity entity) {
+    	Date modifiedDate = entity.getModifiedDate();
         LOG.info("Getting the modified date for the source object "
-                + entity.getName());
-        return entity.getModifiedDate();
+                + entity.getName() + ": " + DateUtils.dateToString(modifiedDate));
+        return modifiedDate;
     }
     
     @UniqueId
     public String getUniqueId(Entity entity) {
-        return entity.getId().toString();
+    	String uniqueId = entity.getId().toString();
+    	LOG.info("Getting the unique UUID for the source object " + entity.getName() 
+    			+ ": " + uniqueId);
+        return uniqueId;
     }
     
     @Get

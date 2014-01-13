@@ -33,6 +33,7 @@ import org.apache.commons.lang.StringUtils;
 
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
@@ -135,10 +136,22 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     		return false;
     	}
     	
+    	// Only store file in Amazon S3
     	if (entity instanceof File) {
     	    String keyName = getAmazonS3UniqueKey(entity);
-    	    // Only store file in Amazon S3
-    		amazonS3Manager.uploadEntity(bucketName, keyName, inputStream);
+    	    
+			// Additional metadata instructing Amazon S3 how to handle the
+			// uploaded data (e.g. custom user metadata, hooks for specifying
+			// content type, etc.).
+    	    ObjectMetadata metadata = new ObjectMetadata();
+    	    metadata.setContentType(((File) entity).getContentType());
+    	    
+    	    // Always set the content length, even if it's already set
+    	    metadata.setContentLength(((File) entity).getSize());
+    	    boolean isUploaded = amazonS3Manager.uploadEntity(bucketName, keyName, inputStream, metadata);
+    	    if (!isUploaded) {
+    	    	return false;
+    	    }
     	}
     	
     	// Store folder as hierarchy in Amazon DynamoDB

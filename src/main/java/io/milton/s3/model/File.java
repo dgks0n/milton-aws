@@ -16,13 +16,8 @@
  */
 package io.milton.s3.model;
 
-import java.net.URLConnection;
 import java.util.Date;
 import java.util.UUID;
-
-import javax.activation.MimetypesFileTypeMap;
-
-import org.apache.commons.lang.StringUtils;
 
 public class File extends Entity {
     
@@ -33,14 +28,12 @@ public class File extends Entity {
     public File(String fileName, Folder parent) {
         super(fileName, parent);
         this.setDirectory(false);
-        this.contentType = getContentTypeFromName();
     }
 
 	public File(UUID id, String name, Date createdDate, Date modifiedDate,
 			Folder parent) {
 		super(id, name, createdDate, modifiedDate, parent);
 		this.setDirectory(false);
-		this.contentType = getContentTypeFromName();
 	}
 
     public long getSize() {
@@ -57,19 +50,6 @@ public class File extends Entity {
 
     public void setContentType(String contentType) {
         this.contentType = contentType;
-    }
-    
-    /**
-     * Get content type of file based on given name
-     * 
-     * @return ContentType
-     */
-    protected String getContentTypeFromName() {
-    	String contentType = URLConnection.guessContentTypeFromName(getName());
-        if (StringUtils.isEmpty(contentType)) {
-            contentType = MimetypesFileTypeMap.getDefaultFileTypeMap().getContentType(getName());
-        }
-        return contentType;
     }
     
     @Override
