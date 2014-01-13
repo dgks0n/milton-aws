@@ -51,7 +51,7 @@ public interface AmazonStorageService {
     
     boolean putEntity(String bucketName, Entity entity, InputStream inputStream);
     
-    void copyEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 
+    boolean copyEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 
             String newBucketName, String newName);
     
     boolean updateEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 

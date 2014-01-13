@@ -96,7 +96,7 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     }
     
     @Override
-    public void createTable(String tableName) {
+    public boolean createTable(String tableName) {
         List<AttributeDefinition> attributeDefinitions= new ArrayList<AttributeDefinition>();
         attributeDefinitions.add(new AttributeDefinition().withAttributeName(AttributeKey.UUID)
         		.withAttributeType(ScalarAttributeType.S));
@@ -122,29 +122,48 @@ public class DynamoDBServiceImpl implements DynamoDBService {
             
             // Wait for it to become active
             waitForTableAvailable(tableName);
-            // 
-            describeTable(tableName);
+            if (describeTable(tableName) != null) {
+            	return true;
+            }
         } catch (ResourceInUseException rie) {
             LOG.warn("Table " + tableName + " already exists");
-        }
+		} catch (AmazonServiceException ase) {
+			LOG.error(ase.getMessage(), ase);
+		} catch (AmazonClientException ace) {
+			LOG.error(ace.getMessage(), ace);
+		}
+        return false;
     }
 
     @Override
-    public void deleteTable(String tableName) {
-        DeleteTableRequest deleteTableRequest = new DeleteTableRequest().withTableName(tableName);
-        DeleteTableResult deleteTableResult = dynamoDBClient.deleteTable(deleteTableRequest);
-        if (deleteTableRequest != null) {
-        	LOG.info("Delete description for " + tableName + ": " + deleteTableResult);
-        }
-        
-        waitForTableDeleted(tableName);
+    public boolean deleteTable(String tableName) {
+        try {
+        	DeleteTableRequest deleteTableRequest = new DeleteTableRequest().withTableName(tableName);
+            DeleteTableResult deleteTableResult = dynamoDBClient.deleteTable(deleteTableRequest);
+            if (deleteTableRequest != null) {
+            	LOG.info("Deleting table description: " + deleteTableResult);
+            	
+            	// Waiting for table deleted
+            	waitForTableDeleted(tableName);
+            	LOG.info("Successfully deleted table " + tableName);
+            	return true;
+            }
+		} catch (ResourceInUseException rie) {
+            LOG.warn("Table " + tableName + " already exists");
+		} catch (AmazonServiceException ase) {
+			LOG.error(ase.getMessage(), ase);
+		} catch (AmazonClientException ace) {
+			LOG.error(ace.getMessage(), ace);
+		}
+        return false;
     }
 
     @Override
     public boolean isTableExist(String tableName) {
         boolean isTableExist = false;
-        if (describeTable(tableName) != null)
-            isTableExist = true;
+        if (describeTable(tableName) != null) {
+        	isTableExist = true;
+        }
         
         return isTableExist;
     }
@@ -191,11 +210,11 @@ public class DynamoDBServiceImpl implements DynamoDBService {
     @Override
     public PutItemResult putItem(String tableName, Map<String, AttributeValue> item) {
     	if (item == null || item.isEmpty()) {
-    		LOG.warn("Does not support store null or empty entity in Amazon S3 and DynamoDB");
+    		LOG.warn("Does not support store null or empty entity in table " + tableName);
     		return null;
     	}
     	
-    	LOG.info("Putted item " + item.toString() + " into " + tableName);
+    	LOG.info("Successfully putted item " + item.toString() + " into " + tableName);
     	
         try {
             PutItemRequest putItemRequest = new PutItemRequest(tableName, item);

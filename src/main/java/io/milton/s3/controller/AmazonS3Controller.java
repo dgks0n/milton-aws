@@ -53,6 +53,7 @@ import org.slf4j.LoggerFactory;
 
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.model.Bucket;
 
 @ResourceController
 public class AmazonS3Controller {
@@ -70,9 +71,16 @@ public class AmazonS3Controller {
 	 * repository
 	 * 
 	 */
-    public AmazonS3Controller() throws Exception {
+    public AmazonS3Controller() {
     	amazonStorageService = new AmazonStorageServiceImpl(region);
-    	amazonStorageService.createBucket(BUCKET_NAME);
+    	
+    	// Tried to create bucket in Amazon S3
+    	Bucket bucket = amazonStorageService.createBucket(BUCKET_NAME);
+    	if (bucket == null) {
+    		LOG.error("Could not connect to domain " + BUCKET_NAME + ".s3-" + region.getName() + ".amazonaws.com");
+			throw new RuntimeException("Could not connect to domain"
+					+ BUCKET_NAME + ".s3-" + region.getName() + ".amazonaws.com");
+    	}
     }
     
     /**
@@ -110,19 +118,24 @@ public class AmazonS3Controller {
         // Get all entities form Amazon DynamoDB
         List<Entity> children = amazonStorageService.findEntityByParent(BUCKET_NAME, parent);
         LOG.info("Listing collection of folder " + parent.getName() + ": "
-                + children.size() + " items");
+                + children.size() + " items in bucket " + BUCKET_NAME);
         return children;
     }
     
     @MakeCollection
     public Folder createFolder(Folder parent, String folderName) {
-        LOG.info("Creating folder " + folderName + " in " + parent.getName());
-        
+        LOG.info("Creating folder " + folderName + " in " + parent.getName() 
+        		+ " in bucket " + BUCKET_NAME);
         // Create new folder for the given name & store in the Amazon DynamoDB
         Folder newFolder = (Folder) parent.addFolder(folderName);
-        if (amazonStorageService.putEntity(BUCKET_NAME, newFolder, null)) {
-        	LOG.info("Create Successful folder " + folderName + " in " + parent.getName());
+        boolean isCreatedFolder = amazonStorageService.putEntity(BUCKET_NAME, newFolder, null);
+        if (!isCreatedFolder) {
+        	LOG.error("Could not create folder " + folderName + " in bucket " + BUCKET_NAME);
+        	throw new RuntimeException("Could not create folder " + folderName + " in bucket " + BUCKET_NAME);
         }
+        
+        LOG.info("Successfully created folder " + folderName + " in " + parent.getName()
+        		+ " in bucket " + BUCKET_NAME);
         return newFolder;
     }
     
@@ -140,7 +153,7 @@ public class AmazonS3Controller {
     public File createFile(Folder parent, String newName, InputStream inputStream, Long contentLength, 
     		String contentType) {
 		LOG.info("Creating file " + inputStream.toString() + " with name "
-				+ newName + " in the folder " + parent.getName());
+				+ newName + " in the folder " + parent.getName() + " in bucket " + BUCKET_NAME);
         
         // Create a file and store into Amazon Simple Storage Service
         File newFile = parent.addFile(newName);
@@ -151,13 +164,16 @@ public class AmazonS3Controller {
         }
         newFile.setContentType(contentType);
         
-		LOG.info("Created new file " + newName + " [name=" + newName
+		LOG.info("Successfully created file " + newName + " [name=" + newName
 				+ ", contentLength=" + contentLength + ", contentType="
-				+ contentType + "]");
-        boolean isSuccess = amazonStorageService.putEntity(BUCKET_NAME, newFile, inputStream);
-        if (isSuccess) {
-        	LOG.warn("Create Successful file " + newName + " under folder " + parent);
+				+ contentType + "] in bucket " + BUCKET_NAME);
+        boolean isCreatedFile = amazonStorageService.putEntity(BUCKET_NAME, newFile, inputStream);
+        if (!isCreatedFile) {
+        	LOG.error("Could not create file " + newName + " in bucket " + BUCKET_NAME);
+        	throw new RuntimeException("Could not create file " + newName + " in bucket " + BUCKET_NAME);
         }
+        LOG.warn("Successfully created file " + newName + " under folder " + parent 
+        		+ " in bucket " + BUCKET_NAME);
         return newFile;
     }
     
@@ -168,25 +184,44 @@ public class AmazonS3Controller {
             isRenamingAction = false;
             // Current action is moving file (not renaming)
             LOG.info("Moving file " + entity.getName() + " from folder "
-                    + entity.getParent().getName() + " to " + newName + " in folder " + newParent.getName());
+                    + entity.getParent().getName() + " to " + newName + " in folder " + newParent.getName()
+                    + " in bucket " + BUCKET_NAME);
         } else {
             LOG.info("Renaming file " + entity.getName() + " to " + newName
-                    + " in folder " + entity.getParent().getName());
+                    + " in folder " + entity.getParent().getName() + " in bucket " + BUCKET_NAME);
         }
-        boolean isSuccess = amazonStorageService.updateEntityByUniqueId(BUCKET_NAME, entity, newParent, 
-                newName, isRenamingAction);
-        if (isSuccess) {
-            LOG.info("Succesful by updating or moving file " + entity.getName() + " to " 
-                    + newName + " in " + newParent.getName());
+        boolean isSuccessful = amazonStorageService.updateEntityByUniqueId(BUCKET_NAME, entity, newParent, 
+        		newName, isRenamingAction);
+        if (!isSuccessful) {
+        	LOG.error("Could not remove or move file " + entity.getName() 
+        			+ " from " + entity.getParent().getName() + " to file " + newName + " in the folder " 
+        			+ newParent.getName() + " in bucket " + BUCKET_NAME);
+        	throw new RuntimeException("Could not remove or move file " + entity.getName() 
+        			+ " from " + entity.getParent().getName() + " to file " + newName + " in the folder " 
+        			+ newParent.getName() + " in bucket " + BUCKET_NAME);
         }
+        LOG.info("Successfully updated or moved file " + entity.getName() + " to " 
+                + newName + " in " + newParent.getName() + " in bucket " + BUCKET_NAME);
     }
     
     @Copy
     public void copyFile(Entity entity, Folder newParent, String newName) {
 		LOG.info("Copying file " + entity.getName() + " from folder " + entity.getParent().getName() 
-		        + " to folder " + newParent.getName());
+		        + " to folder " + newParent.getName() + " in bucket " + BUCKET_NAME);
 		
-		amazonStorageService.copyEntityByUniqueId(BUCKET_NAME, entity, newParent, null, newName);
+		boolean isSuccessful = amazonStorageService.copyEntityByUniqueId(BUCKET_NAME, entity, newParent, 
+				null, newName);
+		if (!isSuccessful) {
+			LOG.error("Could not copy file " + entity.getName() 
+        			+ " from " + entity.getParent().getName() + " to file " + newName + " in the folder " 
+        			+ newParent.getName() + " in bucket " + BUCKET_NAME);
+			throw new RuntimeException("Could not copy file " + entity.getName() 
+        			+ " from " + entity.getParent().getName() + " to file " + newName + " in the folder " 
+        			+ newParent.getName() + " in bucket " + BUCKET_NAME);
+		}
+		
+		LOG.info("Successfully copied file " + entity.getName() + " to " 
+                + newName + " in " + newParent.getName() + " in bucket " + BUCKET_NAME);
     }
     
     @ContentLength
@@ -198,7 +233,7 @@ public class AmazonS3Controller {
     public Long getContentLength(Entity entity) {
     	long contentLength = 0L;
         if (entity instanceof Folder) {
-            LOG.warn("Could not get content length of folder " + entity.getName());
+            LOG.warn("Could not get content length of folder " + entity.getName() + " in bucket " + BUCKET_NAME);
             return contentLength;
         }
         
@@ -249,19 +284,25 @@ public class AmazonS3Controller {
 		String keyName = file.getParent().getId().toString()
 				+ java.io.File.separatorChar + file.getId().toString();
         LOG.info("Downloading file " + file.toString() + " under folder "
-                + file.getParent().getName());
-    	return amazonStorageService.downloadEntityByUniqueId(BUCKET_NAME, keyName);
+                + file.getParent().getName() + " in bucket " + BUCKET_NAME);
+        InputStream inputStream = amazonStorageService.downloadEntityByUniqueId(BUCKET_NAME, keyName);
+        if (inputStream == null) {
+        	LOG.error("Could not download file " + file.getName() + " from bucket " + BUCKET_NAME);
+        	throw new RuntimeException("Could not download file " + file.getName() 
+        			+ " from bucket " + BUCKET_NAME);
+        }
+        return inputStream;
     }
     
     @Delete
     public void deleteFileOrFolder(Entity entity) {
-        LOG.info("Deleting the entity " + entity.getName() + " in the " + BUCKET_NAME + " in Amazon S3");
-        boolean isDeleted = amazonStorageService.deleteEntityByUniqueId(BUCKET_NAME, 
+        LOG.info("Deleting the entity " + entity.getName() + " in bucket " + BUCKET_NAME);
+        boolean isSuccessful = amazonStorageService.deleteEntityByUniqueId(BUCKET_NAME, 
                 entity.getId().toString());
-        if (!isDeleted) {
-            LOG.warn("Could not delete the entity " + entity.getName() + " in the " + BUCKET_NAME);
-            return;
+        if (!isSuccessful) {
+            LOG.error("Could not delete the entity " + entity.getName() + " in the " + BUCKET_NAME);
+            throw new RuntimeException("Could not delete the entity " + entity.getName() + " in the " + BUCKET_NAME);
         }
-        LOG.info("The entity " + entity.getName() + " was deleted");
+        LOG.info("Successfully deleted the entity " + entity.getName() + " in bucket " + BUCKET_NAME);
     }
 }

@@ -29,7 +29,7 @@ public interface DynamoDBManager {
      * @param tableName
      *              - the storage database name
      */
-    void createTable(String tableName);
+	boolean createTable(String tableName);
     
     /**
      * Delete storage database in Amazon DynamoDB for the given table name
@@ -37,7 +37,7 @@ public interface DynamoDBManager {
      * @param tableName
      *              - the storage database name
      */
-    void deleteTable(String tableName);
+	boolean deleteTable(String tableName);
     
     boolean isExistEntity(String tableName, String entityName, Folder parent);
     

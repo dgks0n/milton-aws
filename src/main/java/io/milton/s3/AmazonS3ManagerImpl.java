@@ -77,7 +77,7 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
 
     @Override
     public boolean isRootBucket(String bucketName) {
-        LOG.info("Checks if the specified bucket " + bucketName + " exists");
+        LOG.info("Checks if the specified bucket " + bucketName + " exists or not");
         
         try {
         	return amazonS3Client.doesBucketExist(bucketName);
@@ -95,11 +95,20 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
             // Checks if the specified bucket exists or not and
             // if doesn't exist then creates a new Amazon S3 bucket
             // with the specified name in the default (US) region
-            if (!isRootBucket(bucketName)) {
+        	boolean isBucketExist = isRootBucket(bucketName);
+            if (!isBucketExist) {
                 LOG.info("Creates a new Amazon S3 bucket " + bucketName
                         + " with the specified name in the default (US) region");
-                
                 return amazonS3Client.createBucket(bucketName);
+            }
+            
+            List<Bucket> buckets = findBuckets();
+            if (!buckets.isEmpty()) {
+            	for (Bucket bucket : buckets) {
+            		if (bucket.getName().equals(bucketName)) {
+            			return bucket;
+            		}
+            	}
             }
         } catch (AmazonServiceException ase) {
             LOG.error(ase.getMessage(), ase);
@@ -143,18 +152,22 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     }
 
     @Override
-    public void uploadEntity(String bucketName, String keyName, File file) {
+    public boolean uploadEntity(String bucketName, String keyName, File file) {
         LOG.info("Uploads the specified file " + file
                 + " to Amazon S3 under the specified bucket " + bucketName
                 + " and key name " + keyName);
         
         try {
-            amazonS3Client.putObject(bucketName, keyName, file);
+        	PutObjectResult putObjectResult = amazonS3Client.putObject(bucketName, keyName, file);
+        	if (putObjectResult != null) {
+        		return true;
+        	}
         } catch (AmazonServiceException ase) {
             LOG.error(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
             LOG.error(ace.getMessage(), ace);
         }
+        return false;
     }
 
     @Override
@@ -194,11 +207,11 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
     }
     
     @Override
-	public void deleteEntities(String bucketName) {
+	public boolean deleteEntities(String bucketName) {
 		LOG.info("Deletes multiple objects in a bucket " + bucketName + " from Amazon S3");
 		List<S3ObjectSummary> s3ObjectSummaries = findEntityByBucket(bucketName);
 		if (s3ObjectSummaries == null || s3ObjectSummaries.isEmpty()) {
-		    return;
+		    return false;
 		}
 		
 		// Provide a list of object keys and versions.
@@ -211,28 +224,34 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
 		    DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(bucketName)
 		        .withKeys(keyVersions);
 		    DeleteObjectsResult deleteObjectsResult = amazonS3Client.deleteObjects(deleteObjectsRequest);
-            LOG.info("Successfully deleted all the "
-                    + deleteObjectsResult.getDeletedObjects().size() + " items.\n");
+		    if (deleteObjectsResult != null) {
+		    	LOG.info("Successfully deleted all the "
+	                    + deleteObjectsResult.getDeletedObjects().size() + " items.\n");
+		    	return true;
+		    }
 		} catch (AmazonServiceException ase) {
             LOG.warn(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
             LOG.warn(ace.getMessage(), ace);
 		}
+		return false;
 	}
 
     @Override
-    public void publicEntity(String bucketName, String keyName) {
+    public boolean publicEntity(String bucketName, String keyName) {
         LOG.info("Sets the CannedAccessControlList for the specified object "
                 + keyName
                 + " in Amazon S3 using one of the pre-configured CannedAccessControlLists");
         
         try {
         	amazonS3Client.setObjectAcl(bucketName, keyName, CannedAccessControlList.PublicRead);
+        	return true;
         } catch (AmazonServiceException ase) {
             LOG.warn(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
             LOG.warn(ace.getMessage(), ace);
         }
+        return false;
     }
     
     @Override
@@ -302,9 +321,9 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
                 return true;
             }
         } catch (AmazonServiceException ase) {
-        	throw new RuntimeException(ase.getMessage(), ase);
+        	LOG.warn(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
-        	throw new RuntimeException(ace.getMessage(), ace);
+        	LOG.warn(ace.getMessage(), ace);
         }
         return false;
     }
@@ -319,9 +338,9 @@ public class AmazonS3ManagerImpl implements AmazonS3Manager {
         	    return s3Object.getObjectContent();
         	}
         } catch (AmazonServiceException ase) {
-            throw new RuntimeException(ase.getMessage(), ase);
+        	LOG.warn(ase.getMessage(), ase);
         } catch (AmazonClientException ace) {
-        	throw new RuntimeException(ace.getMessage(), ace);
+        	LOG.warn(ace.getMessage(), ace);
         }
         return null;
     }

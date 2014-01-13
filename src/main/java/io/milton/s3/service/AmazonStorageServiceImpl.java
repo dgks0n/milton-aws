@@ -57,10 +57,14 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
     @Override
     public Bucket createBucket(String bucketName) {
         Bucket bucket = amazonS3Manager.createBucket(bucketName);
-        if (bucket != null) {
-            dynamoDBManager.createTable(bucketName);
-            return bucket;
+        if (bucket == null) {
+        	return null;
         }
+        
+        boolean isSuccessful = dynamoDBManager.createTable(bucketName);
+        if (isSuccessful) {
+    		return bucket;
+    	}
         return null;
     }
     
@@ -77,7 +81,6 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
         Folder rootFolder = (Folder) dynamoDBManager.findRootFolder(bucketName);
         if (rootFolder == null) {
             rootFolder = new Folder("/", null);
-            
             // Tries to create new folder for the given UUID
             // if it does not exist in Amazon S3
             dynamoDBManager.putEntity(bucketName, rootFolder);
@@ -159,22 +162,22 @@ public class AmazonStorageServiceImpl implements AmazonStorageService {
 	}
     
     @Override
-    public void copyEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 
+    public boolean copyEntityByUniqueId(String bucketName, Entity entity, Folder newParent, 
             String newBucketName, String newName) {
         String sourceKeyName = getAmazonS3UniqueKey(entity);
         String targetKeyName = newParent.getId().toString()
                 + java.io.File.separatorChar + entity.getId().toString();
         
         // Copies a source object to a new destination in Amazon S3
-        boolean isSuccess = amazonS3Manager.copyEntity(bucketName, sourceKeyName, newBucketName, 
+        boolean isSuccessful = amazonS3Manager.copyEntity(bucketName, sourceKeyName, newBucketName, 
                 targetKeyName);
-        if (isSuccess) {
+        if (isSuccessful) {
             entity.setParent(newParent);
             entity.setName(newName);
-            
             // Store folder as hierarchy in Amazon DynamoDB
-            dynamoDBManager.putEntity(bucketName, entity);
+            return dynamoDBManager.putEntity(bucketName, entity);
         }
+        return false;
     }
 
     @Override

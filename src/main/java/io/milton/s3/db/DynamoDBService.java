@@ -45,7 +45,7 @@ public interface DynamoDBService {
      * @param tableName
      *            - The name of the table
      */
-    void createTable(String tableName);
+	boolean createTable(String tableName);
 
     /**
      * Deletes a table and all of its items
@@ -58,7 +58,7 @@ public interface DynamoDBService {
      * @param tableName
      *            - The name of the table
      */
-    void deleteTable(String tableName);
+    boolean deleteTable(String tableName);
 
     boolean isTableExist(String tableName);
 

@@ -22,8 +22,10 @@ import io.milton.s3.db.mapper.DynamoDBEntityMapper;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.Folder;
 import io.milton.s3.util.AttributeKey;
+import io.milton.s3.util.DateUtils;
 
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,17 +69,19 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
 	 *             - Table name
 	 */
 	@Override
-	public void createTable(String tableName) {
-	    if (!dynamoDBService.isTableExist(tableName)) {
+	public boolean createTable(String tableName) {
+		boolean isTableExist = dynamoDBService.isTableExist(tableName);
+	    if (!isTableExist) {
             // Create table if it's not exist & describe the table for the given
             // table after created
-            dynamoDBService.createTable(tableName);
+            return dynamoDBService.createTable(tableName);
         }
+	    return isTableExist;
 	}
 	
 	@Override
-    public void deleteTable(String tableName) {
-        dynamoDBService.deleteTable(tableName);
+    public boolean deleteTable(String tableName) {
+        return dynamoDBService.deleteTable(tableName);
     }
 	
 	@Override
@@ -272,6 +276,8 @@ public class DynamoDBManagerImpl implements DynamoDBManager {
         Map<String, AttributeValueUpdate> updateItems = new HashMap<String, AttributeValueUpdate>();
         updateItems.put(AttributeKey.ENTITY_NAME, new AttributeValueUpdate()
         	.withAction(AttributeAction.PUT).withValue(new AttributeValue().withS(newEntityName)));
+        updateItems.put(AttributeKey.MODIFIED_DATE, new AttributeValueUpdate()
+    		.withAction(AttributeAction.PUT).withValue(new AttributeValue().withS(DateUtils.dateToString(new Date()))));
         
         if (!isRenamingAction) {
         	updateItems.put(AttributeKey.PARENT_UUID, new AttributeValueUpdate()

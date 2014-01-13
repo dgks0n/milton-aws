@@ -91,7 +91,7 @@ public interface AmazonS3Manager {
      * @param file
      *            - The file containing the data to be uploaded to Amazon S3
      */
-    void uploadEntity(String bucketName, String keyName, File file);
+    boolean uploadEntity(String bucketName, String keyName, File file);
     
     /**
 	 * Uploads the specified input stream and object metadata to Amazon S3 under
@@ -134,9 +134,9 @@ public interface AmazonS3Manager {
      * @param bucketName
      *              - The name of an existing bucket
      */
-    void deleteEntities(String bucketName);
+    boolean deleteEntities(String bucketName);
     
-    void publicEntity(String bucketName, String keyName);
+    boolean publicEntity(String bucketName, String keyName);
     
     /**
      * Copies a source object to a new destination in Amazon S3. You need to
