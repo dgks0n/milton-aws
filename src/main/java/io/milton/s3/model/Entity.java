@@ -17,150 +17,96 @@
 package io.milton.s3.model;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
-public class Entity {
+/** Base type for files and folders stored by the adapter. */
+public abstract class Entity {
 
-	/**
-	 * UUID is unique ID
-	 */
-    private UUID id;
-    
-    /**
-     * Name of entity
-     */
-    private String name;
-    
-    /**
-     * Created date of entity
-     */
-    private Date createdDate;
-    
-    /**
-     * Modified date of entity
-     */
-    private Date modifiedDate;
-    
-    /**
-	 * Check entity is folder or not. Default is a Folder
-	 */
-    private boolean isDirectory;
+  private final UUID id;
+  private String name;
+  private final Date createdDate;
+  private Date modifiedDate;
+  private Folder parent;
 
-    /**
-     * Parent folder entity
-     */
-    private Folder parent;
+  public Entity(String name, Folder parent) {
+    this(UUID.randomUUID(), name, new Date(), new Date(), parent);
+  }
 
-    public Entity(String name, Folder parent) {
-    	this.id = UUID.randomUUID();
-    	this.name = name;
-        this.parent = parent;
-        this.createdDate = new Date();
-        this.modifiedDate = new Date();
-        this.isDirectory = true;
+  public Entity(UUID id, String name, Date createdDate, Date modifiedDate, Folder parent) {
+    this.id = Objects.requireNonNull(id, "id");
+    this.name = requireName(name);
+    this.parent = parent;
+    this.createdDate = copy(Objects.requireNonNull(createdDate, "createdDate"));
+    this.modifiedDate = copy(Objects.requireNonNull(modifiedDate, "modifiedDate"));
+  }
+
+  public UUID getId() {
+    return id;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public void setName(String name) {
+    this.name = requireName(name);
+    this.modifiedDate = new Date();
+  }
+
+  public Date getCreatedDate() {
+    return copy(createdDate);
+  }
+
+  public Date getModifiedDate() {
+    return copy(modifiedDate);
+  }
+
+  public void setModifiedDate(Date modifiedDate) {
+    this.modifiedDate = copy(Objects.requireNonNull(modifiedDate, "modifiedDate"));
+  }
+
+  public abstract boolean isDirectory();
+
+  public Folder getParent() {
+    return parent;
+  }
+
+  public void setParent(Folder parent) {
+    this.parent = parent;
+    this.modifiedDate = new Date();
+  }
+
+  @Override
+  public final boolean equals(Object object) {
+    return this == object || (object instanceof Entity other && id.equals(other.id));
+  }
+
+  @Override
+  public final int hashCode() {
+    return id.hashCode();
+  }
+
+  @Override
+  public String toString() {
+    return getClass().getSimpleName()
+        + "{id="
+        + id
+        + ", name='"
+        + name
+        + "', parentId="
+        + (parent == null ? null : parent.getId())
+        + "}";
+  }
+
+  private static Date copy(Date value) {
+    return new Date(value.getTime());
+  }
+
+  private static String requireName(String value) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException("name must not be blank");
     }
-    
-	public Entity(UUID id, String name, Date createdDate, Date modifiedDate,
-			Folder parent) {
-		this.id = id;
-		this.name = name;
-		this.parent = parent;
-		this.createdDate = createdDate;
-		this.modifiedDate = modifiedDate;
-		this.isDirectory = true;
-	}
-
-    public UUID getId() {
-        return id;
-    }
-    
-    public void setId(UUID id) {
-		this.id = id;
-	}
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(final String name) {
-        this.name = name;
-        this.modifiedDate = new Date();
-    }
-
-    public Date getCreatedDate() {
-        return createdDate;
-    }
-
-    public void setCreatedDate(Date createdDate) {
-        this.createdDate = createdDate;
-    }
-
-    public Date getModifiedDate() {
-        return modifiedDate;
-    }
-    
-    public void setModifiedDate(Date modifiedDate) {
-        this.modifiedDate = modifiedDate;
-    }
-
-	public boolean isDirectory() {
-		return isDirectory;
-	}
-
-	public void setDirectory(boolean isDirectory) {
-		this.isDirectory = isDirectory;
-	}
-
-	public Folder getParent() {
-        return parent;
-    }
-
-    public void setParent(final Folder parent) {
-        this.parent = parent;
-    }
-
-	@Override
-	public String toString() {
-		return "Entity [id=" + id + ", name=" + name + ", createdDate="
-				+ createdDate + ", modifiedDate=" + modifiedDate
-				+ ", isDirectory=" + isDirectory + ", parent=" + parent + "]";
-	}
-
-	@Override
-	public boolean equals(Object obj) {
-	    if (!(obj instanceof Entity)) {
-	        return false;
-	    }
-	    
-		Entity other = (Entity) obj;
-		if (id == null) {
-			if (other.id != null) {
-				return false;
-			}
-		} else if (!id.equals(other.id)) {
-			return false;
-		}
-		
-		if (name == null) {
-			if (other.name != null) {
-				return false;
-			}
-		} else if (!name.equals(other.name)) {
-			return false;
-		}
-		
-		if (parent == null) {
-			if (other.parent != null) {
-				return false;
-			}
-		} else if (!parent.equals(other.parent)) {
-			return false;
-		}
-		
-		if (isDirectory != other.isDirectory) {
-			return false;
-		}
-		
-		return true;
-	}
+    return value;
+  }
 }

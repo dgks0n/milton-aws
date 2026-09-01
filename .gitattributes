@@ -1,0 +1,7 @@
+* text=auto
+mvnw text eol=lf
+mvnw.cmd text eol=crlf whitespace=cr-at-eol
+*.java text eol=lf
+*.md text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf

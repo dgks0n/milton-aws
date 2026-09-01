@@ -16,36 +16,34 @@
  */
 package io.milton.s3.util;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Date;
+import java.util.Locale;
+import java.util.Objects;
 
-public class DateUtils {
+/** Thread-safe conversion for the timestamp format stored in DynamoDB. */
+public final class DateUtils {
 
-	public static final DateFormat dateFormat = new SimpleDateFormat("E MMM dd HH:mm:ss Z yyyy");
-	
-	/**
-	 * New date for the given string based on format date
-	 * 
-	 * @param dateString
-	 * @return
-	 */
-	public static Date dateFromString(String dateString) {
-    	Date date = null;
-    	try {
-    		date = dateFormat.parse(dateString);
-		} catch (ParseException pe) {}
-    	return date;
+  private static final DateTimeFormatter FORMATTER =
+      DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss Z uuuu", Locale.ENGLISH);
+
+  private DateUtils() {}
+
+  /** Parses a stored timestamp. */
+  public static Date dateFromString(String value) {
+    Objects.requireNonNull(value, "value");
+    try {
+      return Date.from(ZonedDateTime.parse(value, FORMATTER).toInstant());
+    } catch (DateTimeParseException exception) {
+      throw new IllegalArgumentException("Invalid stored date: " + value, exception);
     }
-	
-	/**
-	 * Convert a date to string for the give date
-	 * 
-	 * @param date
-	 * @return
-	 */
-	public static String dateToString(Date date) {
-		return dateFormat.format(date);
-	}
+  }
+
+  /** Formats a timestamp for storage. */
+  public static String dateToString(Date value) {
+    Objects.requireNonNull(value, "value");
+    return FORMATTER.format(value.toInstant().atZone(java.time.ZoneId.systemDefault()));
+  }
 }

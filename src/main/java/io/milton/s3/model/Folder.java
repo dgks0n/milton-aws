@@ -20,24 +20,25 @@ import java.util.Date;
 import java.util.UUID;
 
 public class Folder extends Entity {
-    
-    public Folder(String folderName, Folder parent) {
-        super(folderName, parent);
-    }
-    
-	public Folder(UUID id, String name, Date createdDate, Date modifiedDate,
-			Folder parent) {
-    	super(id, name, createdDate, modifiedDate, parent);
-	}
 
-    public File addFile(final String fileName) {
-        File file = new File(fileName, this);
-        file.setDirectory(false);
-        return file;
-    }
-    
-    public Folder addFolder(final String folderName) {
-        Folder folder = new Folder(folderName, this);
-        return folder;
-    }
+  public Folder(String folderName, Folder parent) {
+    super(folderName, parent);
+  }
+
+  public Folder(UUID id, String name, Date createdDate, Date modifiedDate, Folder parent) {
+    super(id, name, createdDate, modifiedDate, parent);
+  }
+
+  @Override
+  public boolean isDirectory() {
+    return true;
+  }
+
+  public File addFile(final String fileName) {
+    return new File(fileName, this);
+  }
+
+  public Folder addFolder(final String folderName) {
+    return new Folder(folderName, this);
+  }
 }

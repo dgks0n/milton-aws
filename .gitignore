@@ -1,6 +1,11 @@
-*.class
+target/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+*.log
 
-# Package Files #
-*.jar
-*.war
-*.ear
+# Never commit local credentials or environment files.
+.env
+.env.*
+AwsCredentials.properties

@@ -5,14 +5,6 @@
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 package io.milton.s3;
 
@@ -23,296 +15,188 @@ import io.milton.s3.model.Entity;
 import io.milton.s3.model.Folder;
 import io.milton.s3.util.AttributeKey;
 import io.milton.s3.util.DateUtils;
-
-import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.model.AttributeAction;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValueUpdate;
+import software.amazon.awssdk.services.dynamodb.model.ComparisonOperator;
+import software.amazon.awssdk.services.dynamodb.model.Condition;
 
-import org.apache.commons.lang.StringUtils;
+/** Default {@link DynamoDBManager} implementation. */
+public final class DynamoDBManagerImpl implements DynamoDBManager {
 
-import com.amazonaws.regions.Region;
-import com.amazonaws.services.dynamodbv2.model.AttributeAction;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
-import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
-import com.amazonaws.services.dynamodbv2.model.Condition;
-import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
-import com.amazonaws.services.dynamodbv2.model.PutItemResult;
-import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
+  private final DynamoDBService dynamoDBService;
 
-public class DynamoDBManagerImpl implements DynamoDBManager {
-	
-	/**
-     * Amazon DynamoDB Storage Service
-     */
-    private final DynamoDBService dynamoDBService;
-    
-    /**
-     * Initialize Amazon DynamoDB environment for the given tableName
-     * 
-     * @param region
-     *            - You can choose the geographical Region where Amazon S3 will
-     *            store the buckets you create
-     * @param tableName
-     *            - Table name
-     */
-	public DynamoDBManagerImpl(Region region) {
-		dynamoDBService = new DynamoDBServiceImpl(region);
-	}
-	
-	/**
-	 * Create table for the given tableName in the Amazon DynamoDB
-	 * 
-	 * @param tableName
-	 *             - Table name
-	 */
-	@Override
-	public boolean createTable(String tableName) {
-		boolean isTableExist = dynamoDBService.isTableExist(tableName);
-	    if (!isTableExist) {
-            // Create table if it's not exist & describe the table for the given
-            // table after created
-            return dynamoDBService.createTable(tableName);
-        }
-	    return isTableExist;
-	}
-	
-	@Override
-    public boolean deleteTable(String tableName) {
-        return dynamoDBService.deleteTable(tableName);
+  public DynamoDBManagerImpl(Region region) {
+    this(new DynamoDBServiceImpl(region));
+  }
+
+  public DynamoDBManagerImpl(DynamoDBService dynamoDBService) {
+    this.dynamoDBService = Objects.requireNonNull(dynamoDBService, "dynamoDBService");
+  }
+
+  @Override
+  public boolean createTable(String tableName) {
+    return dynamoDBService.isTableExist(tableName) || dynamoDBService.createTable(tableName);
+  }
+
+  @Override
+  public boolean deleteTable(String tableName) {
+    return dynamoDBService.deleteTable(tableName);
+  }
+
+  @Override
+  public boolean isExistEntity(String tableName, String entityName, Folder parent) {
+    if (entityName == null || entityName.isBlank()) {
+      return false;
     }
-	
-	@Override
-    public boolean isExistEntity(String tableName, String entityName, Folder parent) {
-        if (StringUtils.isEmpty(entityName)) {
-            return false;
-        }
-        
-        Map<String, Condition> conditions = new HashMap<String, Condition>();
-        String parentId = AttributeKey.NOT_EXIST;
-        if (parent != null) {
-            parentId = parent.getId().toString();
-        }
-        
-        // Search entity by parent unique UUID
-        Condition parentUniqueId = new Condition().withComparisonOperator(ComparisonOperator.EQ)
-                .withAttributeValueList(new AttributeValue().withS(parentId));
-        conditions.put(AttributeKey.PARENT_UUID, parentUniqueId);
-        
-        // Search entity by name
-        Condition entityKeyName = new Condition().withComparisonOperator(ComparisonOperator.EQ)
-                .withAttributeValueList(new AttributeValue().withS(entityName));
-        conditions.put(AttributeKey.ENTITY_NAME, entityKeyName);
-        
-        List<Map<String, AttributeValue>> items = dynamoDBService.getItem(tableName, conditions);
-        List<Entity> children = DynamoDBEntityMapper.convertItemsToEntities(parent, items);
-        if (children == null || children.isEmpty()) {
-            return false;
-        }
-        
-        return true;
+    Map<String, Condition> conditions =
+        Map.of(
+            AttributeKey.PARENT_UUID,
+            equalsString(parent == null ? AttributeKey.NOT_EXIST : parent.getId().toString()),
+            AttributeKey.ENTITY_NAME,
+            equalsString(entityName));
+    return !dynamoDBService.scanItems(tableName, conditions).isEmpty();
+  }
+
+  @Override
+  public boolean putEntity(String tableName, Entity entity) {
+    Objects.requireNonNull(entity, "entity");
+    return dynamoDBService.putItem(tableName, dynamoDBService.newItem(entity)) != null;
+  }
+
+  @Override
+  public Folder findRootFolder(String tableName) {
+    List<Entity> entities =
+        DynamoDBEntityMapper.convertItemsToEntities(
+            null,
+            dynamoDBService.scanItems(
+                tableName, Map.of(AttributeKey.PARENT_UUID, equalsString(AttributeKey.NOT_EXIST))));
+    if (entities.isEmpty()) {
+      return null;
     }
-	
-	/**
-	 * The putEntity method stores an item in a table
-	 * 
-	 * @param entity
-	 * @return
-	 */
-	@Override
-	public boolean putEntity(String tableName, Entity entity) {
-		Map<String, AttributeValue> newItem = dynamoDBService.newItem(entity);
-		PutItemResult putItemResult = dynamoDBService.putItem(tableName, newItem);
-		if (putItemResult != null) {
-		    return true;
-		}
-		
-		return false;
-	}
-	
-	/**
-	 * The findRootFolder method retrieves an root item
-	 * 
-	 * @return
-	 */
-	@Override
-	public Folder findRootFolder(String tableName) {
-        Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-                .withAttributeValueList(new AttributeValue().withS(AttributeKey.NOT_EXIST));
-
-        Map<String, Condition> conditions = new HashMap<String, Condition>();
-        conditions.put(AttributeKey.PARENT_UUID, condition);
-
-        List<Map<String, AttributeValue>> items = dynamoDBService.getItem(tableName, conditions);
-        List<Entity> children = DynamoDBEntityMapper.convertItemsToEntities(null, items);
-        if (children == null || children.isEmpty()) {
-            return null;
-        }
-
-        return (Folder) children.get(0);
-	}
-	
-	/**
-	 * The findEntityByUniqueId method retrieves an root item for the given
-	 * unique UUID
-	 * 
-	 * @param entity
-	 * @return Entity
-	 */
-	@Override
-	public Entity findEntityByUniqueId(String tableName, Entity entity) {
-		if (entity == null) {
-		    return null;
-		}
-		
-		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue> ();
-		primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId().toString()));
-		Map<String, AttributeValue> items = dynamoDBService.getItem(tableName, primaryKey);
-		return DynamoDBEntityMapper.convertItemToEntity(entity.getParent(), items);
-	}
-	
-	
-	/**
-	 * The findEntityByUniqueId method retrieves an root item for the given
-	 * unique UUID & parent
-	 * 
-	 * @param uniqueId
-	 * @param parent
-	 * 
-	 * @return Entity
-	 */
-	@Override
-	public Entity findEntityByUniqueId(String tableName, String uniqueId, Folder parent) {
-		if (StringUtils.isEmpty(uniqueId)) {
-		    return null;
-		}
-		
-		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue> ();
-		primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(uniqueId));
-		Map<String, AttributeValue> items = dynamoDBService.getItem(tableName, primaryKey);
-		return DynamoDBEntityMapper.convertItemToEntity(parent, items);
-	}
-	
-	/**
-	 * The findEntityByParent method enables you to retrieve multiple items
-	 * from one table.
-	 * 
-	 * @param parent
-	 * @return
-	 */
-	@Override
-	public List<Entity> findEntityByParent(String tableName, Folder parent) {
-		if (parent == null) {
-			return Collections.emptyList();
-		}
-		
-		Condition condition = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-            .withAttributeValueList(new AttributeValue().withS(parent.getId().toString()));
-        Map<String, Condition> conditions = new HashMap<String, Condition>();
-        conditions.put(AttributeKey.PARENT_UUID, condition);
-        
-        List<Map<String, AttributeValue>> items = dynamoDBService.getItem(tableName, conditions);
-        List<Entity> children = DynamoDBEntityMapper.convertItemsToEntities(parent, items);
-        if (children == null || children.isEmpty()) {
-            return Collections.emptyList();
-        }
-        
-        return children;
-	}
-	
-	/**
-     * The findEntityByParentAndType method enables you to retrieve multiple items
-     * from one table.
-     * 
-     * @param parent
-     * @param isDirectory
-     * @return a list of entities
-     */
-	@Override
-    public List<Entity> findEntityByParentAndType(String tableName, Folder parent, boolean isDirectory) {
-	    if (parent == null) {
-            return Collections.emptyList();
-        }
-	    
-	    Map<String, Condition> conditions = new HashMap<String, Condition>();
-	    Condition parentUniqueId = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-	            .withAttributeValueList(new AttributeValue().withS(parent.getId().toString()));
-        conditions.put(AttributeKey.PARENT_UUID, parentUniqueId);
-        
-        Condition entityType = new Condition().withComparisonOperator(ComparisonOperator.EQ.toString())
-                .withAttributeValueList(new AttributeValue().withN(Integer.toString(isDirectory ? 1 : 0)));
-        conditions.put(AttributeKey.IS_DIRECTORY, entityType);
-	    
-        List<Map<String, AttributeValue>> items = dynamoDBService.getItem(tableName, conditions);
-        List<Entity> children = DynamoDBEntityMapper.convertItemsToEntities(parent, items);
-        if (children == null || children.isEmpty()) {
-            return Collections.emptyList();
-        }
-        
-        return children;
+    Entity root = entities.get(0);
+    if (!(root instanceof Folder folder)) {
+      throw new MiltonAwsException("Stored root entity is not a folder");
     }
-	
-	/**
-	 * Move or rename entity to other folder
-	 * 
-	 * @param entity
-	 * 				- current entity want to move or rename
-	 * @param newParent
-	 * 				- parent of entity
-	 * @param newEntityName
-	 * 				- new name of entity
-	 * @param isRenamingAction
-	 * 				- TRUE is renaming file, otherwise FALSE
-	 * @return TRUE/FALSE
-	 */
-	@Override
-	public boolean updateEntityByUniqueId(String tableName, Entity entity, Folder newParent, 
-	        String newEntityName, boolean isRenamingAction) {
-		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue>();
-        primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId().toString()));
-        
-        Map<String, AttributeValueUpdate> updateItems = new HashMap<String, AttributeValueUpdate>();
-        updateItems.put(AttributeKey.ENTITY_NAME, new AttributeValueUpdate()
-        	.withAction(AttributeAction.PUT).withValue(new AttributeValue().withS(newEntityName)));
-        updateItems.put(AttributeKey.MODIFIED_DATE, new AttributeValueUpdate()
-    		.withAction(AttributeAction.PUT).withValue(new AttributeValue().withS(DateUtils.dateToString(new Date()))));
-        
-        if (!isRenamingAction) {
-        	updateItems.put(AttributeKey.PARENT_UUID, new AttributeValueUpdate()
-    			.withAction(AttributeAction.PUT).withValue(new AttributeValue()
-    			.withS(newParent.getId().toString())));
-        }
-        
-        UpdateItemResult updateStatus = dynamoDBService.updateItem(tableName, primaryKey, updateItems);
-        if (updateStatus != null) {
-            return true;
-        }
-        
-		return false;
-	}
-	
-	/**
-	 * The deleteEntityByUniqueId method deletes an item from a table.
-	 * 
-	 * @param uniqueId
-	 * @return
-	 */
-	@Override
-	public boolean deleteEntityByUniqueId(String tableName, String uniqueId) {
-		if (StringUtils.isEmpty(uniqueId)) {
-		    return false;
-		}
-		
-		HashMap<String, AttributeValue> primaryKey = new HashMap<String, AttributeValue> ();
-		primaryKey.put(AttributeKey.UUID, new AttributeValue().withS(uniqueId));
-		DeleteItemResult deleteItemResult = dynamoDBService.deleteItem(tableName, primaryKey);
-		if (deleteItemResult != null) {
-		    return true;
-		}
-		
-		return false;
-	}
+    return folder;
+  }
 
+  @Override
+  public Entity findEntityByUniqueId(String tableName, Entity entity) {
+    if (entity == null) {
+      return null;
+    }
+    return findEntityByUniqueId(tableName, entity.getId().toString(), entity.getParent());
+  }
+
+  @Override
+  public Entity findEntityByUniqueId(String tableName, String uniqueId, Folder parent) {
+    if (uniqueId == null || uniqueId.isBlank()) {
+      return null;
+    }
+    return DynamoDBEntityMapper.convertItemToEntity(
+        parent,
+        dynamoDBService.getItem(
+            tableName, Map.of(AttributeKey.UUID, AttributeValue.builder().s(uniqueId).build())));
+  }
+
+  @Override
+  public List<Entity> findEntityByParent(String tableName, Folder parent) {
+    if (parent == null) {
+      return List.of();
+    }
+    return DynamoDBEntityMapper.convertItemsToEntities(
+        parent,
+        dynamoDBService.scanItems(
+            tableName, Map.of(AttributeKey.PARENT_UUID, equalsString(parent.getId().toString()))));
+  }
+
+  @Override
+  public List<Entity> findEntityByParentAndType(
+      String tableName, Folder parent, boolean isDirectory) {
+    if (parent == null) {
+      return List.of();
+    }
+    Map<String, Condition> conditions =
+        Map.of(
+            AttributeKey.PARENT_UUID,
+            equalsString(parent.getId().toString()),
+            AttributeKey.IS_DIRECTORY,
+            equalsNumber(isDirectory ? 1 : 0));
+    return DynamoDBEntityMapper.convertItemsToEntities(
+        parent, dynamoDBService.scanItems(tableName, conditions));
+  }
+
+  @Override
+  public boolean updateEntityByUniqueId(
+      String tableName,
+      Entity entity,
+      Folder newParent,
+      String newEntityName,
+      boolean isRenamingAction) {
+    Objects.requireNonNull(entity, "entity");
+    Objects.requireNonNull(newParent, "newParent");
+    if (newEntityName == null || newEntityName.isBlank()) {
+      throw new IllegalArgumentException("newEntityName must not be blank");
+    }
+
+    Map<String, AttributeValueUpdate> updates = new java.util.LinkedHashMap<>();
+    updates.put(AttributeKey.ENTITY_NAME, putString(newEntityName));
+    updates.put(AttributeKey.MODIFIED_DATE, putString(DateUtils.dateToString(new Date())));
+    if (!isRenamingAction) {
+      updates.put(AttributeKey.PARENT_UUID, putString(newParent.getId().toString()));
+    }
+
+    boolean updated =
+        dynamoDBService.updateItem(
+                tableName,
+                Map.of(
+                    AttributeKey.UUID,
+                    AttributeValue.builder().s(entity.getId().toString()).build()),
+                updates)
+            != null;
+    if (updated) {
+      entity.setName(newEntityName);
+      if (!isRenamingAction) {
+        entity.setParent(newParent);
+      }
+    }
+    return updated;
+  }
+
+  @Override
+  public boolean deleteEntityByUniqueId(String tableName, String uniqueId) {
+    if (uniqueId == null || uniqueId.isBlank()) {
+      return false;
+    }
+    return dynamoDBService.deleteItem(
+            tableName, Map.of(AttributeKey.UUID, AttributeValue.builder().s(uniqueId).build()))
+        != null;
+  }
+
+  private static Condition equalsString(String value) {
+    return Condition.builder()
+        .comparisonOperator(ComparisonOperator.EQ)
+        .attributeValueList(AttributeValue.builder().s(value).build())
+        .build();
+  }
+
+  private static Condition equalsNumber(int value) {
+    return Condition.builder()
+        .comparisonOperator(ComparisonOperator.EQ)
+        .attributeValueList(AttributeValue.builder().n(Integer.toString(value)).build())
+        .build();
+  }
+
+  private static AttributeValueUpdate putString(String value) {
+    return AttributeValueUpdate.builder()
+        .action(AttributeAction.PUT)
+        .value(AttributeValue.builder().s(value).build())
+        .build();
+  }
 }

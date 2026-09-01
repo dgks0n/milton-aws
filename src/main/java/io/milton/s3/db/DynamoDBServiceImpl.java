@@ -5,376 +5,299 @@
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 package io.milton.s3.db;
 
+import io.milton.s3.MiltonAwsException;
 import io.milton.s3.model.Entity;
 import io.milton.s3.model.File;
-import io.milton.s3.model.Folder;
 import io.milton.s3.util.AttributeKey;
 import io.milton.s3.util.DateUtils;
-
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.core.waiters.WaiterResponse;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValueUpdate;
+import software.amazon.awssdk.services.dynamodb.model.BillingMode;
+import software.amazon.awssdk.services.dynamodb.model.Condition;
+import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
+import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
+import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
+import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemResponse;
+import software.amazon.awssdk.services.dynamodb.waiters.DynamoDbWaiter;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
-import com.amazonaws.regions.Region;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
-import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
-import com.amazonaws.services.dynamodbv2.model.Condition;
-import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
-import com.amazonaws.services.dynamodbv2.model.CreateTableResult;
-import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
-import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
-import com.amazonaws.services.dynamodbv2.model.DeleteTableRequest;
-import com.amazonaws.services.dynamodbv2.model.DeleteTableResult;
-import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
-import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
-import com.amazonaws.services.dynamodbv2.model.GetItemResult;
-import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
-import com.amazonaws.services.dynamodbv2.model.KeyType;
-import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
-import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
-import com.amazonaws.services.dynamodbv2.model.PutItemResult;
-import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
-import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
-import com.amazonaws.services.dynamodbv2.model.ReturnValue;
-import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
-import com.amazonaws.services.dynamodbv2.model.ScanRequest;
-import com.amazonaws.services.dynamodbv2.model.ScanResult;
-import com.amazonaws.services.dynamodbv2.model.TableDescription;
-import com.amazonaws.services.dynamodbv2.model.TableStatus;
-import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
-import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
+/** AWS SDK v2 implementation of {@link DynamoDBService}. */
+public final class DynamoDBServiceImpl implements DynamoDBService {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(DynamoDBServiceImpl.class);
 
-public class DynamoDBServiceImpl implements DynamoDBService {
+  private final DynamoDbClient dynamoDbClient;
 
-    private static final Logger LOG = LoggerFactory.getLogger(DynamoDBServiceImpl.class);
-    
-    /**
-     * Important: Be sure to fill in your AWS access credentials in the
-     * AwsCredentials.properties file before you try to run this class.
-     * 
-     * http://aws.amazon.com/security-credentials
-     */
-    private final AmazonDynamoDBClient dynamoDBClient;
-    
-    /**
-     * The only information needed to create a client are security credentials
-     * consisting of the AWS Access Key ID and Secret Access Key. All other
-     * configuration, such as the service endpoints, are performed
-     * automatically. Client parameters, such as proxies, can be specified in an
-     * optional ClientConfiguration object when constructing a client.
-     *
-     * @see com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider
-     * @see com.amazonaws.regions.Region
-     */
-    public DynamoDBServiceImpl(Region region) {
-        LOG.info("Initialize Amazon DynamoDB environment...!!!");
-        
-        dynamoDBClient = new AmazonDynamoDBClient(new ClasspathPropertiesFileCredentialsProvider());
-        dynamoDBClient.setRegion(region);
-    }
-    
-    @Override
-    public boolean createTable(String tableName) {
-        List<AttributeDefinition> attributeDefinitions= new ArrayList<AttributeDefinition>();
-        attributeDefinitions.add(new AttributeDefinition().withAttributeName(AttributeKey.UUID)
-        		.withAttributeType(ScalarAttributeType.S));
-        
-        List<KeySchemaElement> keySchemaElement = new ArrayList<KeySchemaElement>();
-        keySchemaElement.add(new KeySchemaElement().withAttributeName(AttributeKey.UUID)
-        		.withKeyType(KeyType.HASH));
-        
-        // Provide the initial provisioned throughput values as Java long data types
-        ProvisionedThroughput provisionedThroughput = new ProvisionedThroughput()
-            .withReadCapacityUnits(10L)
-            .withWriteCapacityUnits(10L);
-        
-        CreateTableRequest createTableRequest = new CreateTableRequest()
-            .withTableName(tableName)
-            .withAttributeDefinitions(attributeDefinitions)
-            .withKeySchema(keySchemaElement)
-            .withProvisionedThroughput(provisionedThroughput);
-        
-        try {
-            CreateTableResult createdTableDescription = dynamoDBClient.createTable(createTableRequest);
-            LOG.info("Creating table description: " + createdTableDescription);
-            
-            // Wait for it to become active
-            waitForTableAvailable(tableName);
-            if (describeTable(tableName) != null) {
-            	return true;
-            }
-        } catch (ResourceInUseException rie) {
-            LOG.warn("Table " + tableName + " already exists");
-		} catch (AmazonServiceException ase) {
-			LOG.error(ase.getMessage(), ase);
-		} catch (AmazonClientException ace) {
-			LOG.error(ace.getMessage(), ace);
-		}
-        return false;
+  /** Creates a client using the AWS default credentials provider chain. */
+  public DynamoDBServiceImpl(Region region) {
+    this(
+        DynamoDbClient.builder()
+            .region(Objects.requireNonNull(region, "region"))
+            .credentialsProvider(DefaultCredentialsProvider.builder().build())
+            .build());
+  }
+
+  /** Creates a service around an externally configured client. */
+  public DynamoDBServiceImpl(DynamoDbClient dynamoDbClient) {
+    this.dynamoDbClient = Objects.requireNonNull(dynamoDbClient, "dynamoDbClient");
+  }
+
+  @Override
+  public boolean createTable(String tableName) {
+    requireText(tableName, "tableName");
+    CreateTableRequest request =
+        CreateTableRequest.builder()
+            .tableName(tableName)
+            .attributeDefinitions(
+                AttributeDefinition.builder()
+                    .attributeName(AttributeKey.UUID)
+                    .attributeType(ScalarAttributeType.S)
+                    .build())
+            .keySchema(
+                KeySchemaElement.builder()
+                    .attributeName(AttributeKey.UUID)
+                    .keyType(KeyType.HASH)
+                    .build())
+            .billingMode(BillingMode.PAY_PER_REQUEST)
+            .build();
+    try {
+      dynamoDbClient.createTable(request);
+    } catch (ResourceInUseException exception) {
+      return true;
+    } catch (RuntimeException exception) {
+      throw failure("create table " + tableName, exception);
     }
 
-    @Override
-    public boolean deleteTable(String tableName) {
-        try {
-        	DeleteTableRequest deleteTableRequest = new DeleteTableRequest().withTableName(tableName);
-            DeleteTableResult deleteTableResult = dynamoDBClient.deleteTable(deleteTableRequest);
-            if (deleteTableRequest != null) {
-            	LOG.info("Deleting table description: " + deleteTableResult);
-            	
-            	// Waiting for table deleted
-            	waitForTableDeleted(tableName);
-            	LOG.info("Successfully deleted table " + tableName);
-            	return true;
-            }
-		} catch (ResourceInUseException rie) {
-            LOG.warn("Table " + tableName + " already exists");
-		} catch (AmazonServiceException ase) {
-			LOG.error(ase.getMessage(), ase);
-		} catch (AmazonClientException ace) {
-			LOG.error(ace.getMessage(), ace);
-		}
-        return false;
+    try (DynamoDbWaiter waiter = dynamoDbClient.waiter()) {
+      assertWaiterSucceeded(
+          waiter.waitUntilTableExists(DescribeTableRequest.builder().tableName(tableName).build()),
+          "wait for table " + tableName);
+    }
+    return true;
+  }
+
+  @Override
+  public boolean deleteTable(String tableName) {
+    requireText(tableName, "tableName");
+    try {
+      dynamoDbClient.deleteTable(DeleteTableRequest.builder().tableName(tableName).build());
+    } catch (ResourceNotFoundException exception) {
+      return true;
+    } catch (RuntimeException exception) {
+      throw failure("delete table " + tableName, exception);
     }
 
-    @Override
-    public boolean isTableExist(String tableName) {
-        boolean isTableExist = false;
-        if (describeTable(tableName) != null) {
-        	isTableExist = true;
-        }
-        
-        return isTableExist;
+    try (DynamoDbWaiter waiter = dynamoDbClient.waiter()) {
+      assertWaiterSucceeded(
+          waiter.waitUntilTableNotExists(
+              DescribeTableRequest.builder().tableName(tableName).build()),
+          "wait for table deletion " + tableName);
     }
-    
-    @Override
-    public Map<String, AttributeValue> newItem(Entity entity) {
-        Map<String, AttributeValue> newItem = new HashMap<String, AttributeValue>();
-        newItem.put(AttributeKey.UUID, new AttributeValue().withS(entity.getId().toString()));
-        newItem.put(AttributeKey.ENTITY_NAME, new AttributeValue().withS(entity.getName()));
-        
-        // Get folder parent UUID
-        String parentUniqueId = AttributeKey.NOT_EXIST;
-        Folder folder = entity.getParent();
-        if (folder != null) {
-        	parentUniqueId = folder.getId().toString();
-        }
-        
-        int fileSize = 0;
-        String contentType = AttributeKey.NOT_EXIST;
-        if (entity instanceof File) {
-            fileSize = (int) ((File) entity).getSize();
-            contentType = ((File) entity).getContentType();
-        }
-        
-        newItem.put(AttributeKey.PARENT_UUID, new AttributeValue().withS(parentUniqueId));
-		newItem.put(AttributeKey.IS_DIRECTORY, new AttributeValue()
-				.withN(Integer.toString(entity.isDirectory() ? 1 : 0)));
-        newItem.put(AttributeKey.FILE_SIZE, new AttributeValue().withN(Integer.toString(fileSize)));
-        newItem.put(AttributeKey.CONTENT_TYPE, new AttributeValue().withS(contentType));
-		newItem.put(AttributeKey.CREATED_DATE, new AttributeValue()
-				.withS(DateUtils.dateToString(entity.getCreatedDate())));
-		newItem.put(AttributeKey.MODIFIED_DATE, new AttributeValue()
-				.withS(DateUtils.dateToString(entity.getModifiedDate())));
-        return newItem;
+    return true;
+  }
+
+  @Override
+  public boolean isTableExist(String tableName) {
+    requireText(tableName, "tableName");
+    try {
+      dynamoDbClient.describeTable(DescribeTableRequest.builder().tableName(tableName).build());
+      return true;
+    } catch (ResourceNotFoundException exception) {
+      return false;
+    } catch (RuntimeException exception) {
+      throw failure("describe table " + tableName, exception);
+    }
+  }
+
+  @Override
+  public Map<String, AttributeValue> newItem(Entity entity) {
+    Objects.requireNonNull(entity, "entity");
+    Map<String, AttributeValue> item = new LinkedHashMap<>();
+    item.put(AttributeKey.UUID, stringValue(entity.getId().toString()));
+    item.put(AttributeKey.ENTITY_NAME, stringValue(entity.getName()));
+    item.put(
+        AttributeKey.PARENT_UUID,
+        stringValue(
+            entity.getParent() == null
+                ? AttributeKey.NOT_EXIST
+                : entity.getParent().getId().toString()));
+    item.put(AttributeKey.IS_DIRECTORY, numberValue(entity.isDirectory() ? 1 : 0));
+
+    long fileSize = 0;
+    String contentType = AttributeKey.NOT_EXIST;
+    if (entity instanceof File file) {
+      fileSize = file.getSize();
+      if (file.getContentType() != null && !file.getContentType().isBlank()) {
+        contentType = file.getContentType();
+      }
+    }
+    item.put(AttributeKey.FILE_SIZE, numberValue(fileSize));
+    item.put(AttributeKey.CONTENT_TYPE, stringValue(contentType));
+    item.put(
+        AttributeKey.CREATED_DATE, stringValue(DateUtils.dateToString(entity.getCreatedDate())));
+    item.put(
+        AttributeKey.MODIFIED_DATE, stringValue(DateUtils.dateToString(entity.getModifiedDate())));
+    return Map.copyOf(item);
+  }
+
+  @Override
+  public PutItemResponse putItem(String tableName, Map<String, AttributeValue> item) {
+    requireText(tableName, "tableName");
+    if (item == null || item.isEmpty()) {
+      throw new IllegalArgumentException("item must not be empty");
+    }
+    try {
+      return dynamoDbClient.putItem(
+          PutItemRequest.builder().tableName(tableName).item(item).build());
+    } catch (RuntimeException exception) {
+      throw failure("put item in table " + tableName, exception);
+    }
+  }
+
+  @Override
+  public Map<String, AttributeValue> getItem(
+      String tableName, Map<String, AttributeValue> primaryKey) {
+    requireText(tableName, "tableName");
+    if (primaryKey == null || primaryKey.isEmpty()) {
+      throw new IllegalArgumentException("primaryKey must not be empty");
+    }
+    try {
+      Map<String, AttributeValue> item =
+          dynamoDbClient
+              .getItem(
+                  GetItemRequest.builder()
+                      .tableName(tableName)
+                      .key(primaryKey)
+                      .consistentRead(true)
+                      .build())
+              .item();
+      return item == null ? Map.of() : Map.copyOf(item);
+    } catch (RuntimeException exception) {
+      throw failure("get item from table " + tableName, exception);
+    }
+  }
+
+  @Override
+  public List<Map<String, AttributeValue>> scanItems(
+      String tableName, Map<String, Condition> conditions) {
+    requireText(tableName, "tableName");
+    if (conditions == null || conditions.isEmpty()) {
+      throw new IllegalArgumentException("conditions must not be empty");
     }
 
-    /**
-     * Put given item into the table. If the item exists, it replaces the entire
-     * item. Instead of replacing the entire item, if you want to update only
-     * specific attributes, you can use the updateItem method.
-     * 
-     * @param item
-     */
-    @Override
-    public PutItemResult putItem(String tableName, Map<String, AttributeValue> item) {
-    	if (item == null || item.isEmpty()) {
-    		LOG.warn("Does not support store null or empty entity in table " + tableName);
-    		return null;
-    	}
-    	
-    	LOG.info("Successfully putted item " + item.toString() + " into " + tableName);
-    	
-        try {
-            PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
-            PutItemResult putItemResult = dynamoDBClient.putItem(putItemRequest);
-			LOG.info("Putted status: " + putItemResult);
-            return putItemResult;
-        } catch (AmazonServiceException ase) {
-            LOG.error("Failed to put given item into the " + tableName, ase);
-        } catch (AmazonClientException ace) {
-        	LOG.error("Failed to put given item into the " + tableName, ace);
-		}
-        return null;
+    List<Map<String, AttributeValue>> items = new ArrayList<>();
+    Map<String, AttributeValue> startKey = null;
+    try {
+      do {
+        ScanRequest request =
+            ScanRequest.builder()
+                .tableName(tableName)
+                .scanFilter(conditions)
+                .exclusiveStartKey(startKey)
+                .build();
+        ScanResponse response = dynamoDbClient.scan(request);
+        items.addAll(response.items());
+        startKey = response.lastEvaluatedKey();
+      } while (startKey != null && !startKey.isEmpty());
+      return List.copyOf(items);
+    } catch (RuntimeException exception) {
+      throw failure("scan table " + tableName, exception);
     }
-    
-    @Override
-    public Map<String, AttributeValue> getItem(String tableName, HashMap<String, AttributeValue> primaryKey) {
-        LOG.info("Retrieves a set of Attributes for an item that matches the primary key "
-                + primaryKey + " from the table " + tableName);
-        
-    	try {
-    		GetItemRequest getItemRequest = new GetItemRequest().withTableName(tableName)
-    				.withKey(primaryKey)
-    				.withConsistentRead(true);
-            GetItemResult getItemResult = dynamoDBClient.getItem(getItemRequest);
-            Map<String, AttributeValue> item = getItemResult.getItem();
-            if (item == null || item.isEmpty()) {
-				LOG.warn("Could not find any item for the given UUID: "
-						+ primaryKey + " from " + tableName);
-            	return Collections.emptyMap();
-            }
-            
-			LOG.info("Listing collection from " + tableName + ": " + (item.size() / 8) + " items");
-            return item;
-    	} catch (ResourceNotFoundException rnfe) {
-    	    LOG.error("Requested resource " + tableName + " not found ", rnfe);
-		} catch (Exception ex) {
-			LOG.error("Failed to get item into the " + tableName, ex);
-		}
-    	
-        return Collections.emptyMap();
-    }
-    
-    @Override
-    public List<Map<String, AttributeValue>> getItem(String tableName, Map<String, Condition> conditions) {
-        ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(conditions);
-        ScanResult scanResult = dynamoDBClient.scan(scanRequest);
-        int count = scanResult.getCount();
-        if (count == 0) {
-        	return Collections.emptyList();
-        }
-        
-		LOG.info("Successful by getting items from " + tableName
-				+ " based on conditions: " + conditions.toString() + ": " + count + " items");
-        return scanResult.getItems();
-    }
-    
-    @Override
-    public UpdateItemResult updateItem(String tableName, HashMap<String, AttributeValue> primaryKey, Map<String, 
-    		AttributeValueUpdate> updateItems) {
-        Map<String, AttributeValueUpdate> attributeValueUpdates = new HashMap<String, AttributeValueUpdate>();
-        attributeValueUpdates.putAll(updateItems);
-        
-        UpdateItemRequest updateItemRequest = new UpdateItemRequest()
-            .withTableName(tableName)
-            .withKey(primaryKey).withReturnValues(ReturnValue.UPDATED_NEW)
-            .withAttributeUpdates(updateItems);
-        
-        UpdateItemResult updateItemResult = dynamoDBClient.updateItem(updateItemRequest);
-		LOG.info("Successful by updating item from " + tableName + ": " + updateItemResult); 
-        return updateItemResult;
-    }
+  }
 
-    @Override
-    public DeleteItemResult deleteItem(String tableName, HashMap<String, AttributeValue> primaryKey) {
-        DeleteItemRequest deleteItemRequest = new DeleteItemRequest()
-            .withTableName(tableName)
-            .withKey(primaryKey);
-            
-        DeleteItemResult deleteItemResult = dynamoDBClient.deleteItem(deleteItemRequest);
-        LOG.info("Successful by deleting item in " + tableName);
-        return deleteItemResult;
+  @Override
+  public UpdateItemResponse updateItem(
+      String tableName,
+      Map<String, AttributeValue> primaryKey,
+      Map<String, AttributeValueUpdate> updateItems) {
+    requireText(tableName, "tableName");
+    if (primaryKey == null || primaryKey.isEmpty()) {
+      throw new IllegalArgumentException("primaryKey must not be empty");
     }
+    if (updateItems == null || updateItems.isEmpty()) {
+      throw new IllegalArgumentException("updateItems must not be empty");
+    }
+    try {
+      return dynamoDbClient.updateItem(
+          UpdateItemRequest.builder()
+              .tableName(tableName)
+              .key(primaryKey)
+              .attributeUpdates(updateItems)
+              .returnValues(ReturnValue.UPDATED_NEW)
+              .build());
+    } catch (RuntimeException exception) {
+      throw failure("update item in table " + tableName, exception);
+    }
+  }
 
-    private void waitForTableAvailable(String tableName) {
-        LOG.info("Waiting for table " + tableName + " to become ACTIVE...");
-        
-        long startTime = System.currentTimeMillis();
-        long endTime = startTime + (10 * 60 * 1000);
-        while (System.currentTimeMillis() < endTime) {
-            DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
-            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
-            
-            // Display current status of table
-            String tableStatus = tableDescription.getTableStatus();
-            LOG.info("Current state for table " + tableName + ": " + tableStatus);
-            if (tableStatus.equals(TableStatus.ACTIVE.toString())) {
-                return;
-            }
-            
-            try {
-                Thread.sleep(1000 * 20);
-            } catch (Exception ex) {
-                LOG.warn(ex.getMessage());
-            }
-        }
-        
-        throw new RuntimeException("Table " + tableName + " never went active");
+  @Override
+  public DeleteItemResponse deleteItem(String tableName, Map<String, AttributeValue> primaryKey) {
+    requireText(tableName, "tableName");
+    if (primaryKey == null || primaryKey.isEmpty()) {
+      throw new IllegalArgumentException("primaryKey must not be empty");
     }
+    try {
+      return dynamoDbClient.deleteItem(
+          DeleteItemRequest.builder().tableName(tableName).key(primaryKey).build());
+    } catch (RuntimeException exception) {
+      throw failure("delete item from table " + tableName, exception);
+    }
+  }
 
-    /**
-     * Retrieves information about the table, including the current status of
-     * the table, the primary key schema and when the table was created.
-     * 
-     * If the table does not exist, Amazon DynamoDB returns a
-     * ResourceNotFoundException.
-     * 
-     * @param tableName
-     *            - The name of the table
-     * @return The response from the DescribeTable service method, as returned by AmazonDynamoDB
-     */
-    private TableDescription describeTable(String tableName) {
-        try {
-            DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
-            TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest).getTable();
-            if (tableDescription != null) {
-                LOG.info("Table description of " + tableName + ": " + tableDescription);
-            }
-            return tableDescription;
-        } catch (ResourceNotFoundException rnfe) {
-            LOG.warn(rnfe.getMessage());
-        }
-        return null;
+  private static void assertWaiterSucceeded(
+      WaiterResponse<DescribeTableResponse> response, String operation) {
+    if (response.matched().response().isPresent()) {
+      return;
     }
-    
-    private void waitForTableDeleted(String tableName) {
-        LOG.info("Waiting for table " + tableName + " while status DELETING...");
+    Throwable cause = response.matched().exception().orElse(null);
+    throw new MiltonAwsException("Unable to " + operation, cause);
+  }
 
-        long startTime = System.currentTimeMillis();
-        long endTime = startTime + (10 * 60 * 1000);
-        while (System.currentTimeMillis() < endTime) {
-            try {
-                DescribeTableRequest describeTableRequest = new DescribeTableRequest().withTableName(tableName);
-                TableDescription tableDescription = dynamoDBClient.describeTable(describeTableRequest)
-                        .getTable();
-                String tableStatus = tableDescription.getTableStatus();
-                LOG.info("Current state for table " + tableName + ": " + tableStatus);
-                if (tableStatus.equals(TableStatus.ACTIVE.toString())) {
-                    return;
-                }
-            } catch (ResourceNotFoundException rne) {
-                LOG.warn("Table " + tableName + " is not found. It was deleted.");
-                return;
-            }
-            
-            try {
-                Thread.sleep(1000 * 20);
-            } catch (Exception ex) {
-                LOG.warn(ex.getMessage());
-            }
-        }
-        throw new RuntimeException("Table " + tableName + " was never deleted");
+  private static AttributeValue stringValue(String value) {
+    return AttributeValue.builder().s(value).build();
+  }
+
+  private static AttributeValue numberValue(long value) {
+    return AttributeValue.builder().n(Long.toString(value)).build();
+  }
+
+  private static void requireText(String value, String name) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalArgumentException(name + " must not be blank");
     }
+  }
+
+  private static MiltonAwsException failure(String operation, RuntimeException cause) {
+    LOGGER.warn("Unable to {}", operation, cause);
+    return new MiltonAwsException("Unable to " + operation, cause);
+  }
 }

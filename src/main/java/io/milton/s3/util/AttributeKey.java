@@ -16,16 +16,18 @@
  */
 package io.milton.s3.util;
 
-public class AttributeKey {
-	
-	public static final String NOT_EXIST = "NONE";
-	
-	public static final String UUID = "UniqueId";
-	public static final String ENTITY_NAME = "EntityName";
-	public static final String PARENT_UUID = "ParentId";
-	public static final String IS_DIRECTORY = "IsDirectory";
-	public static final String FILE_SIZE = "FileSize";
-	public static final String CONTENT_TYPE = "ContentType";
-	public static final String CREATED_DATE = "CreatedDate";
-	public static final String MODIFIED_DATE = "ModifiedDate";
+/** DynamoDB attribute names used by the storage schema. */
+public final class AttributeKey {
+
+  public static final String NOT_EXIST = "NONE";
+  public static final String UUID = "UniqueId";
+  public static final String ENTITY_NAME = "EntityName";
+  public static final String PARENT_UUID = "ParentId";
+  public static final String IS_DIRECTORY = "IsDirectory";
+  public static final String FILE_SIZE = "FileSize";
+  public static final String CONTENT_TYPE = "ContentType";
+  public static final String CREATED_DATE = "CreatedDate";
+  public static final String MODIFIED_DATE = "ModifiedDate";
+
+  private AttributeKey() {}
 }

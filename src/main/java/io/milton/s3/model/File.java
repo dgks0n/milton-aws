@@ -20,45 +20,44 @@ import java.util.Date;
 import java.util.UUID;
 
 public class File extends Entity {
-    
-    private long size;
-    
-    private String contentType;
 
-    public File(String fileName, Folder parent) {
-        super(fileName, parent);
-        this.setDirectory(false);
-    }
+  private long size;
+  private String contentType;
 
-	public File(UUID id, String name, Date createdDate, Date modifiedDate,
-			Folder parent) {
-		super(id, name, createdDate, modifiedDate, parent);
-		this.setDirectory(false);
-	}
+  public File(String fileName, Folder parent) {
+    super(fileName, parent);
+  }
 
-    public long getSize() {
-        return size;
-    }
+  public File(UUID id, String name, Date createdDate, Date modifiedDate, Folder parent) {
+    super(id, name, createdDate, modifiedDate, parent);
+  }
 
-    public void setSize(long size) {
-        this.size = size;
-    }
-    
-    public String getContentType() {
-        return contentType;
-    }
+  @Override
+  public boolean isDirectory() {
+    return false;
+  }
 
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
+  public long getSize() {
+    return size;
+  }
+
+  public void setSize(long size) {
+    if (size < 0) {
+      throw new IllegalArgumentException("size must not be negative");
     }
-    
-    @Override
-	public String toString() {
-		return "Entity [id=" + getId() + ", name=" + getName()
-				+ ", createdDate=" + getCreatedDate() + ", modifiedDate="
-				+ getModifiedDate() + ", isDirectory=" + isDirectory()
-				+ ", parent=" + getParent() + ", size=" + getSize()
-				+ ", contentType=" + getContentType() + "]";
-	}
-    
+    this.size = size;
+  }
+
+  public String getContentType() {
+    return contentType;
+  }
+
+  public void setContentType(String contentType) {
+    this.contentType = contentType;
+  }
+
+  @Override
+  public String toString() {
+    return super.toString() + "[size=" + size + ", contentType='" + contentType + "']";
+  }
 }
